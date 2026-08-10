@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { createTicket } from '../api'
 
-const API_URL = 'http://localhost:8000/api/tickets'
+const emit = defineEmits<{
+  (e: 'ticket-created'): void
+}>()
 
 // Datos del formulario
 const name = ref('')
@@ -18,7 +21,6 @@ async function handleSubmit() {
   errors.value = []
   createdTicket.value = null
 
-  // Validación básica en el cliente (la validación real la hace el backend)
   if (!name.value.trim() || !email.value.trim() || !subject.value.trim() || !description.value.trim()) {
     errors.value.push('Todos los campos son obligatorios.')
     return
@@ -27,26 +29,20 @@ async function handleSubmit() {
   loading.value = true
 
   try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: name.value.trim(),
-        email: email.value.trim(),
-        subject: subject.value.trim(),
-        description: description.value.trim(),
-      }),
+    const res = await createTicket({
+      name: name.value.trim(),
+      email: email.value.trim(),
+      subject: subject.value.trim(),
+      description: description.value.trim(),
     })
 
-    const data = await res.json()
-
     if (!res.ok) {
-      errors.value = data.messages ?? [data.error ?? 'Error desconocido.']
+      errors.value = res.data.messages ?? [res.data.error ?? 'Error desconocido.']
       return
     }
 
-    // Éxito
-    createdTicket.value = data.ticket
+    createdTicket.value = res.data.ticket
+    emit('ticket-created')
     clearForm()
   } catch {
     errors.value = ['No se pudo conectar con el servidor. ¿Está el backend corriendo?']
