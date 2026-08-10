@@ -1,0 +1,16 @@
+# Claude
+.claude
+
+# PHP / Composer
+ticket-backend/vendor/
+
+# Node / Vue
+ticket-frontend/node_modules/
+ticket-frontend/dist/
+
+# Entornos
+.env
+*.log
+
+# Editor
+.vscode/

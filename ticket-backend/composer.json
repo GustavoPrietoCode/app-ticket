@@ -1,0 +1,18 @@
+{
+    "name": "gus/my-flight-app",
+    "description": "demo project",
+    "autoload": {
+        "psr-4": {
+            "Gus\\MyFlightApp\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "gustavo",
+            "email": "gustavo@estudionexos.com"
+        }
+    ],
+    "require": {
+        "flightphp/core": "^3.18"
+    }
+}
