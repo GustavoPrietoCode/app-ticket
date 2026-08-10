@@ -89,6 +89,15 @@ class TicketService
     }
 
     /**
+     * Actualiza el ID del issue de Gitea en un ticket.
+     */
+    public function setGiteaIssueId(int $ticketId, int $issueId): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE tickets SET gitea_issue_id = :issue_id WHERE id = :id');
+        $stmt->execute([':issue_id' => $issueId, ':id' => $ticketId]);
+    }
+
+    /**
      * Devuelve los errores de validación de la última llamada a create().
      */
     public function getErrors(): array

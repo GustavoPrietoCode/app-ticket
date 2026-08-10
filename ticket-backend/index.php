@@ -4,6 +4,7 @@ require 'vendor/autoload.php';
 
 use Gus\MyFlightApp\AuthService;
 use Gus\MyFlightApp\Database;
+use Gus\MyFlightApp\GiteaService;
 use Gus\MyFlightApp\TicketService;
 
 // Cargar configuración
@@ -17,6 +18,7 @@ $pdo = $db->getPdo();
 Flight::set('db', $pdo);
 Flight::set('tickets', new TicketService($pdo));
 Flight::set('auth', new AuthService($pdo));
+Flight::set('gitea', new GiteaService($config['gitea']));
 
 // ─── CORS ────────────────────────────────────────────────────────────
 
@@ -134,6 +136,17 @@ Flight::route('POST /api/tickets', function () {
     if ($ticket === null) {
         Flight::json(['error' => 'Validación fallida', 'messages' => $tickets->getErrors()], 422);
         return;
+    }
+
+    // Crear issue en Gitea (no bloquea la respuesta si falla)
+    /** @var GiteaService $gitea */
+    $gitea  = Flight::get('gitea');
+    $issue  = $gitea->createIssue($ticket['subject'], $ticket['description'], $ticket['email']);
+
+    if ($issue && $issue['number']) {
+        $tickets->setGiteaIssueId((int) $ticket['id'], $issue['number']);
+        $ticket['gitea_issue_id'] = $issue['number'];
+        $ticket['gitea_url']      = $issue['url'];
     }
 
     Flight::json(['ticket' => $ticket], 201);

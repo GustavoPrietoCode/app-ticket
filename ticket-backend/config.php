@@ -9,4 +9,10 @@ return [
         'pass' => '',
         'charset' => 'utf8mb4',
     ],
+    'gitea' => [
+        'base_url' => 'https://s.getcloud.info',
+        'token'    => 'TOKEN_REVOCADO',
+        'owner'    => 'gustavo',
+        'repo'     => 'tickets-soporte',
+    ],
 ];

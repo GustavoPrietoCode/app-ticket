@@ -1,0 +1,65 @@
+const BASE_URL = 'http://localhost:8000/api'
+
+function getToken(): string | null {
+  return localStorage.getItem('token')
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function request(
+  path: string,
+  options: RequestInit = {},
+): Promise<{ ok: boolean; status: number; data: Record<string, any> }> {
+  const token = getToken()
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> | undefined),
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers,
+  })
+
+  const data = await res.json()
+
+  return { ok: res.ok, status: res.status, data }
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────
+
+export function login(email: string, password: string) {
+  return request('/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+export function register(name: string, email: string, password: string) {
+  return request('/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password }),
+  })
+}
+
+// ─── Tickets ─────────────────────────────────────────────────────────
+
+export function createTicket(fields: {
+  name: string
+  email: string
+  subject: string
+  description: string
+}) {
+  return request('/tickets', {
+    method: 'POST',
+    body: JSON.stringify(fields),
+  })
+}
+
+export function getTickets() {
+  return request('/tickets')
+}
