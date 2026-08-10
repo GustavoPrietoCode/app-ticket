@@ -141,7 +141,12 @@ Flight::route('POST /api/tickets', function () {
     // Crear issue en Gitea (no bloquea la respuesta si falla)
     /** @var GiteaService $gitea */
     $gitea  = Flight::get('gitea');
-    $issue  = $gitea->createIssue($ticket['subject'], $ticket['description'], $ticket['email']);
+    $issue  = $gitea->createIssue(
+        $ticket['subject'],
+        $ticket['description'],
+        $user['name'],
+        $user['email']
+    );
 
     if ($issue && $issue['number']) {
         $tickets->setGiteaIssueId((int) $ticket['id'], $issue['number']);

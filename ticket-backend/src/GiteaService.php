@@ -18,15 +18,17 @@ class GiteaService
     }
 
     /**
-     * Crea un issue en Gitea y devuelve el número de issue o null si falla.
+     * Crea un issue en Gitea y devuelve número + url, o null si falla.
      */
-    public function createIssue(string $title, string $body, string $email): ?array
+    public function createIssue(string $title, string $description, string $reporterName, string $reporterEmail): ?array
     {
         $url = "{$this->baseUrl}/api/v1/repos/{$this->owner}/{$this->repo}/issues";
 
+        $body = "**Reportado por:** {$reporterName} <{$reporterEmail}>\n\n{$description}";
+
         $payload = json_encode([
             'title' => $title,
-            'body'  => "**Reportado por:** {$email}\n\n{$body}",
+            'body'  => $body,
         ]);
 
         $ch = curl_init($url);

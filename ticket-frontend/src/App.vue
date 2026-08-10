@@ -78,8 +78,8 @@ function onTicketCreated() {
     </header>
 
     <main>
-      <TicketForm @ticket-created="onTicketCreated" />
       <TicketList ref="ticketList" />
+      <TicketForm @ticket-created="onTicketCreated" />
     </main>
   </template>
 </template>

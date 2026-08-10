@@ -48,15 +48,10 @@ export function register(name: string, email: string, password: string) {
 
 // ─── Tickets ─────────────────────────────────────────────────────────
 
-export function createTicket(fields: {
-  name: string
-  email: string
-  subject: string
-  description: string
-}) {
+export function createTicket(subject: string, description: string) {
   return request('/tickets', {
     method: 'POST',
-    body: JSON.stringify(fields),
+    body: JSON.stringify({ subject, description }),
   })
 }
 

@@ -23,20 +23,12 @@ class TicketService
     {
         $this->errors = [];
 
-        $name        = $this->sanitize($data['name'] ?? '');
-        $email       = $this->sanitize($data['email'] ?? '');
         $subject     = $this->sanitize($data['subject'] ?? '');
         $description = $this->sanitize($data['description'] ?? '');
 
         // Validaciones
-        $this->required('name', $name);
-        $this->required('email', $email);
         $this->required('subject', $subject);
         $this->required('description', $description);
-
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->errors[] = 'El campo email no es válido.';
-        }
 
         if (!empty($this->errors)) {
             return null;
@@ -45,14 +37,12 @@ class TicketService
         $userId = isset($data['user_id']) ? (int) $data['user_id'] : null;
 
         // Insertar
-        $sql = 'INSERT INTO tickets (user_id, name, email, subject, description, status, created_at, updated_at)
-                VALUES (:user_id, :name, :email, :subject, :description, :status, NOW(), NOW())';
+        $sql = 'INSERT INTO tickets (user_id, subject, description, status, created_at, updated_at)
+                VALUES (:user_id, :subject, :description, :status, NOW(), NOW())';
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':user_id'     => $userId,
-            ':name'        => $name,
-            ':email'       => $email,
             ':subject'     => $subject,
             ':description' => $description,
             ':status'      => 'open',
