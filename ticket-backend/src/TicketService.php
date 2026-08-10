@@ -23,16 +23,16 @@ class TicketService
     {
         $this->errors = [];
 
-        $nombre      = $this->sanitize($data['nombre'] ?? '');
+        $name        = $this->sanitize($data['name'] ?? '');
         $email       = $this->sanitize($data['email'] ?? '');
-        $asunto      = $this->sanitize($data['asunto'] ?? '');
-        $descripcion = $this->sanitize($data['descripcion'] ?? '');
+        $subject     = $this->sanitize($data['subject'] ?? '');
+        $description = $this->sanitize($data['description'] ?? '');
 
         // Validaciones
-        $this->required('nombre', $nombre);
+        $this->required('name', $name);
         $this->required('email', $email);
-        $this->required('asunto', $asunto);
-        $this->required('descripcion', $descripcion);
+        $this->required('subject', $subject);
+        $this->required('description', $description);
 
         if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->errors[] = 'El campo email no es válido.';
@@ -42,17 +42,20 @@ class TicketService
             return null;
         }
 
+        $userId = isset($data['user_id']) ? (int) $data['user_id'] : null;
+
         // Insertar
-        $sql = 'INSERT INTO tickets (nombre, email, asunto, descripcion, estado, created_at, updated_at)
-                VALUES (:nombre, :email, :asunto, :descripcion, :estado, NOW(), NOW())';
+        $sql = 'INSERT INTO tickets (user_id, name, email, subject, description, status, created_at, updated_at)
+                VALUES (:user_id, :name, :email, :subject, :description, :status, NOW(), NOW())';
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
-            ':nombre'      => $nombre,
+            ':user_id'     => $userId,
+            ':name'        => $name,
             ':email'       => $email,
-            ':asunto'      => $asunto,
-            ':descripcion' => $descripcion,
-            ':estado'      => 'abierto',
+            ':subject'     => $subject,
+            ':description' => $description,
+            ':status'      => 'open',
         ]);
 
         $id = (int) $this->pdo->lastInsertId();
@@ -70,6 +73,19 @@ class TicketService
         $ticket = $stmt->fetch();
 
         return $ticket ?: null;
+    }
+
+    /**
+     * Devuelve todos los tickets de un usuario.
+     */
+    public function findByUserId(int $userId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM tickets WHERE user_id = :user_id ORDER BY created_at DESC'
+        );
+        $stmt->execute([':user_id' => $userId]);
+
+        return $stmt->fetchAll();
     }
 
     /**

@@ -4,10 +4,10 @@ import { ref } from 'vue'
 const API_URL = 'http://localhost:8000/api/tickets'
 
 // Datos del formulario
-const nombre = ref('')
+const name = ref('')
 const email = ref('')
-const asunto = ref('')
-const descripcion = ref('')
+const subject = ref('')
+const description = ref('')
 
 // Estados
 const loading = ref(false)
@@ -19,7 +19,7 @@ async function handleSubmit() {
   createdTicket.value = null
 
   // Validación básica en el cliente (la validación real la hace el backend)
-  if (!nombre.value.trim() || !email.value.trim() || !asunto.value.trim() || !descripcion.value.trim()) {
+  if (!name.value.trim() || !email.value.trim() || !subject.value.trim() || !description.value.trim()) {
     errors.value.push('Todos los campos son obligatorios.')
     return
   }
@@ -31,10 +31,10 @@ async function handleSubmit() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nombre: nombre.value.trim(),
+        name: name.value.trim(),
         email: email.value.trim(),
-        asunto: asunto.value.trim(),
-        descripcion: descripcion.value.trim(),
+        subject: subject.value.trim(),
+        description: description.value.trim(),
       }),
     })
 
@@ -56,10 +56,10 @@ async function handleSubmit() {
 }
 
 function clearForm() {
-  nombre.value = ''
+  name.value = ''
   email.value = ''
-  asunto.value = ''
-  descripcion.value = ''
+  subject.value = ''
+  description.value = ''
 }
 </script>
 
@@ -75,14 +75,14 @@ function clearForm() {
     <!-- Éxito -->
     <div v-if="createdTicket" class="alert alert-success">
       <p><strong>¡Ticket #{{ createdTicket.id }} creado!</strong></p>
-      <p>Estado: {{ createdTicket.estado }}</p>
+      <p>Status: {{ createdTicket.status }}</p>
     </div>
 
     <!-- Formulario -->
     <form @submit.prevent="handleSubmit" novalidate>
       <div class="field">
-        <label for="nombre">Nombre</label>
-        <input id="nombre" v-model="nombre" type="text" :disabled="loading" />
+        <label for="name">Nombre</label>
+        <input id="name" v-model="name" type="text" :disabled="loading" />
       </div>
 
       <div class="field">
@@ -91,13 +91,13 @@ function clearForm() {
       </div>
 
       <div class="field">
-        <label for="asunto">Asunto</label>
-        <input id="asunto" v-model="asunto" type="text" :disabled="loading" />
+        <label for="subject">Asunto</label>
+        <input id="subject" v-model="subject" type="text" :disabled="loading" />
       </div>
 
       <div class="field">
-        <label for="descripcion">Descripción</label>
-        <textarea id="descripcion" v-model="descripcion" rows="5" :disabled="loading"></textarea>
+        <label for="description">Descripción</label>
+        <textarea id="description" v-model="description" rows="5" :disabled="loading"></textarea>
       </div>
 
       <button type="submit" :disabled="loading" class="btn">

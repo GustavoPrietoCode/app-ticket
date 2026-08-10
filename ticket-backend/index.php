@@ -2,6 +2,7 @@
 
 require 'vendor/autoload.php';
 
+use Gus\MyFlightApp\AuthService;
 use Gus\MyFlightApp\Database;
 use Gus\MyFlightApp\TicketService;
 
@@ -15,24 +16,42 @@ $pdo = $db->getPdo();
 // Registrar servicios en Flight
 Flight::set('db', $pdo);
 Flight::set('tickets', new TicketService($pdo));
+Flight::set('auth', new AuthService($pdo));
 
 // ─── CORS ────────────────────────────────────────────────────────────
-// Permite peticiones desde el frontend Vue en localhost:5173
 
 Flight::before('start', function () {
     header('Access-Control-Allow-Origin: http://localhost:5173');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Accept, X-Requested-With');
+    header('Access-Control-Allow-Headers: Content-Type, Accept, X-Requested-With, Authorization');
     header('Access-Control-Max-Age: 86400');
 
-    // Responder directamente a las peticiones preflight (OPTIONS)
     if (Flight::request()->method === 'OPTIONS') {
         http_response_code(204);
         exit;
     }
 });
 
-// ─── Rutas ───────────────────────────────────────────────────────────
+// ─── Helper: obtener usuario autenticado ─────────────────────────────
+
+function getAuthUser(): ?array
+{
+    $header = Flight::request()->getHeader('Authorization');
+    $token  = null;
+
+    if ($header && preg_match('/^Bearer\s+(.+)$/i', $header, $m)) {
+        $token = $m[1];
+    }
+
+    /** @var AuthService $auth */
+    $auth = Flight::get('auth');
+
+    return $auth->findByToken($token);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RUTAS PÚBLICAS (sin autenticación)
+// ═══════════════════════════════════════════════════════════════════════
 
 // Health check
 Flight::route('GET /api/health', function () {
@@ -44,15 +63,69 @@ Flight::route('GET /api/health', function () {
     }
 });
 
-// Crear ticket
-Flight::route('POST /api/tickets', function () {
-    // Leer body JSON
+// Registro
+Flight::route('POST /api/register', function () {
     $body = json_decode(file_get_contents('php://input'), true);
 
     if (!$body) {
-        Flight::json(['error' => 'El cuerpo de la petición no es JSON válido.'], 400);
+        Flight::json(['error' => 'Cuerpo JSON no válido.'], 400);
         return;
     }
+
+    /** @var AuthService $auth */
+    $auth = Flight::get('auth');
+    $user = $auth->register($body);
+
+    if ($user === null) {
+        Flight::json(['error' => 'Error de registro', 'messages' => $auth->getErrors()], 422);
+        return;
+    }
+
+    Flight::json(['user' => $user], 201);
+});
+
+// Login
+Flight::route('POST /api/login', function () {
+    $body = json_decode(file_get_contents('php://input'), true);
+
+    if (!$body) {
+        Flight::json(['error' => 'Cuerpo JSON no válido.'], 400);
+        return;
+    }
+
+    /** @var AuthService $auth */
+    $auth = Flight::get('auth');
+    $user = $auth->login($body);
+
+    if ($user === null) {
+        Flight::json(['error' => 'Login fallido', 'messages' => $auth->getErrors()], 401);
+        return;
+    }
+
+    Flight::json(['user' => $user]);
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// RUTAS PROTEGIDAS (requieren autenticación)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Crear ticket
+Flight::route('POST /api/tickets', function () {
+    $user = getAuthUser();
+    if (!$user) {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+
+    if (!$body) {
+        Flight::json(['error' => 'Cuerpo JSON no válido.'], 400);
+        return;
+    }
+
+    // Asociar al usuario autenticado
+    $body['user_id'] = $user['id'];
 
     /** @var TicketService $tickets */
     $tickets = Flight::get('tickets');
@@ -64,6 +137,21 @@ Flight::route('POST /api/tickets', function () {
     }
 
     Flight::json(['ticket' => $ticket], 201);
+});
+
+// Listar tickets del usuario autenticado
+Flight::route('GET /api/tickets', function () {
+    $user = getAuthUser();
+    if (!$user) {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var TicketService $tickets */
+    $tickets = Flight::get('tickets');
+    $list    = $tickets->findByUserId($user['id']);
+
+    Flight::json(['tickets' => $list]);
 });
 
 Flight::start();
