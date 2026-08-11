@@ -255,8 +255,8 @@ Flight::route('PATCH /api/tickets/@id', function (string $id) {
     $body   = json_decode(file_get_contents('php://input'), true);
     $status = $body['status'] ?? '';
 
-    if (!in_array($status, ['open', 'in_progress', 'closed'], true)) {
-        Flight::json(['error' => 'Estado no válido. Usa open, in_progress o closed.'], 422);
+    if (!in_array($status, ['open', 'closed'], true)) {
+        Flight::json(['error' => 'Estado no válido. Usa open o closed.'], 422);
         return;
     }
 
