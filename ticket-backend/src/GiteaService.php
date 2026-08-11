@@ -73,6 +73,29 @@ class GiteaService
     }
 
     /**
+     * Obtiene los comentarios de un issue desde Gitea.
+     */
+    public function getComments(int $number): array
+    {
+        $result = $this->request('GET', "/issues/{$number}/comments");
+
+        if (!$result || $result['http'] !== 200) {
+            return [];
+        }
+
+        $comments = $result['data'] ?? [];
+
+        return array_map(function (array $c) {
+            return [
+                'id'         => $c['id'] ?? null,
+                'body'       => $c['body'] ?? '',
+                'author'     => $c['user']['login'] ?? 'desconocido',
+                'created_at' => $c['created_at'] ?? '',
+            ];
+        }, $comments);
+    }
+
+    /**
      * Añade un comentario a un issue en Gitea.
      */
     public function addComment(int $number, string $body): bool

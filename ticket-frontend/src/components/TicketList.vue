@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getTickets, updateTicketStatus, addComment } from '../api'
+import { getTickets, updateTicketStatus, addComment, getComments } from '../api'
 
 interface Ticket {
   id: number
@@ -34,6 +34,8 @@ const filteredTickets = computed(() => {
 const expandedTicket = ref<number | null>(null)
 const commentText = ref('')
 const sendingComment = ref(false)
+const comments = ref<{ id: number; body: string; author: string; created_at: string }[]>([])
+const loadingComments = ref(false)
 
 async function loadTickets() {
   loading.value = true
@@ -49,6 +51,14 @@ async function loadTickets() {
 
   tickets.value = res.data.tickets as Ticket[]
   loading.value = false
+
+  // Refrescar también los comentarios si hay un ticket expandido
+  if (expandedTicket.value) {
+    const commentsRes = await getComments(expandedTicket.value)
+    if (commentsRes.ok) {
+      comments.value = commentsRes.data.comments as typeof comments.value
+    }
+  }
 }
 
 async function changeStatus(ticket: Ticket, newStatus: string) {
@@ -56,6 +66,25 @@ async function changeStatus(ticket: Ticket, newStatus: string) {
   if (res.ok) {
     ticket.status = newStatus as Ticket['status']
   }
+}
+
+async function toggleExpand(ticketId: number) {
+  if (expandedTicket.value === ticketId) {
+    expandedTicket.value = null
+    comments.value = []
+    return
+  }
+
+  expandedTicket.value = ticketId
+  commentText.value = ''
+
+  // Cargar historial de comentarios
+  loadingComments.value = true
+  const res = await getComments(ticketId)
+  if (res.ok) {
+    comments.value = res.data.comments as typeof comments.value
+  }
+  loadingComments.value = false
 }
 
 async function sendComment(ticket: Ticket) {
@@ -66,12 +95,13 @@ async function sendComment(ticket: Ticket) {
   const res = await addComment(ticket.id, text)
   if (res.ok) {
     commentText.value = ''
+    // Recargar comentarios para mostrar el nuevo
+    const refreshed = await getComments(ticket.id)
+    if (refreshed.ok) {
+      comments.value = refreshed.data.comments as typeof comments.value
+    }
   }
   sendingComment.value = false
-}
-
-function toggleExpand(ticketId: number) {
-  expandedTicket.value = expandedTicket.value === ticketId ? null : ticketId
 }
 
 function statusLabel(status: string): string {
@@ -176,20 +206,40 @@ onMounted(loadTickets)
         </div>
 
         <!-- Comentarios -->
-        <div v-if="expandedTicket === ticket.id" class="comment-box">
-          <textarea
-            v-model="commentText"
-            placeholder="Escribe un comentario..."
-            rows="3"
-            :disabled="sendingComment"
-          ></textarea>
-          <button
-            class="btn-send"
-            @click="sendComment(ticket)"
-            :disabled="sendingComment || !commentText.trim()"
-          >
-            {{ sendingComment ? 'Enviando...' : 'Enviar' }}
-          </button>
+        <div v-if="expandedTicket === ticket.id" class="comment-section">
+          <!-- Historial -->
+          <div class="comment-history">
+            <p v-if="loadingComments" class="comment-loading">Cargando conversación...</p>
+
+            <p v-else-if="!comments.length" class="comment-empty">
+              Sin comentarios aún. Sé el primero en responder.
+            </p>
+
+            <div v-else v-for="c in comments" :key="c.id" class="comment">
+              <div class="comment-header">
+                <span class="comment-author">{{ c.author }}</span>
+                <span class="comment-date">{{ c.created_at?.split('T')[0] }}</span>
+              </div>
+              <div class="comment-body" v-html="c.body"></div>
+            </div>
+          </div>
+
+          <!-- Nuevo comentario -->
+          <div class="comment-form">
+            <textarea
+              v-model="commentText"
+              placeholder="Escribe un comentario..."
+              rows="2"
+              :disabled="sendingComment"
+            ></textarea>
+            <button
+              class="btn-send"
+              @click="sendComment(ticket)"
+              :disabled="sendingComment || !commentText.trim()"
+            >
+              {{ sendingComment ? 'Enviando...' : 'Enviar' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -335,14 +385,62 @@ onMounted(loadTickets)
 .btn-open:hover { background: #f0fdf4; }
 .btn-comment { color: #555; }
 
-/* ─── Caja de comentario ─── */
-.comment-box {
+/* ─── Sección de comentarios ─── */
+.comment-section {
   margin-top: 0.75rem;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 0.75rem;
+}
+
+.comment-history {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 0.75rem;
+}
+
+.comment-loading, .comment-empty {
+  text-align: center;
+  color: #999;
+  font-size: 0.85rem;
+  padding: 0.75rem 0;
+}
+
+.comment {
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.5rem;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 6px;
+}
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+}
+.comment-author {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #3b82f6;
+}
+.comment-date {
+  font-size: 0.75rem;
+  color: #aaa;
+}
+.comment-body {
+  font-size: 0.88rem;
+  color: #444;
+  line-height: 1.5;
+}
+.comment-body :deep(p) { margin: 0.25rem 0; }
+.comment-body :deep(strong) { font-weight: 600; }
+
+/* ─── Formulario de comentario ─── */
+.comment-form {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-.comment-box textarea {
+.comment-form textarea {
   width: 100%;
   padding: 0.5rem 0.7rem;
   border: 1px solid #ccc;
@@ -352,7 +450,7 @@ onMounted(loadTickets)
   box-sizing: border-box;
   resize: vertical;
 }
-.comment-box textarea:focus {
+.comment-form textarea:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59,130,246,0.15);

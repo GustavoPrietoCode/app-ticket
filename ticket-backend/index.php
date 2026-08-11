@@ -232,6 +232,34 @@ Flight::route('PATCH /api/tickets/@id', function (string $id) {
     Flight::json(['status' => $status]);
 });
 
+// Obtener comentarios de un ticket
+Flight::route('GET /api/tickets/@id/comments', function (string $id) {
+    $user = getAuthUser();
+    if (!$user) {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var TicketService $tickets */
+    $tickets = Flight::get('tickets');
+    $ticket  = $tickets->findById((int) $id);
+
+    if (!$ticket || (int) $ticket['user_id'] !== $user['id']) {
+        Flight::json(['error' => 'Ticket no encontrado.'], 404);
+        return;
+    }
+
+    // Si tiene issue en Gitea, obtener comentarios de allí
+    $comments = [];
+    if ($ticket['gitea_issue_id']) {
+        /** @var GiteaService $gitea */
+        $gitea    = Flight::get('gitea');
+        $comments = $gitea->getComments((int) $ticket['gitea_issue_id']);
+    }
+
+    Flight::json(['comments' => $comments]);
+});
+
 // Añadir comentario a un ticket
 Flight::route('POST /api/tickets/@id/comments', function (string $id) {
     $user = getAuthUser();

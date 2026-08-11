@@ -66,6 +66,10 @@ export function updateTicketStatus(id: number, status: string) {
   })
 }
 
+export function getComments(id: number) {
+  return request(`/tickets/${id}/comments`)
+}
+
 export function addComment(id: number, comment: string) {
   return request(`/tickets/${id}/comments`, {
     method: 'POST',
