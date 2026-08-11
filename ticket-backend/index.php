@@ -207,7 +207,15 @@ Flight::route('GET /api/tickets', function () {
 
     /** @var TicketService $tickets */
     $tickets = Flight::get('tickets');
-    $list    = $tickets->findByUserId($user['id']);
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+
+    if ($isAdmin) {
+        // Admin puede filtrar por usuario: ?user_id=3
+        $filterUserId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
+        $list = $filterUserId ? $tickets->findByUserId($filterUserId) : $tickets->findAll();
+    } else {
+        $list = $tickets->findByUserId($user['id']);
+    }
 
     // Sincronizar estado desde Gitea para tickets con issue asociado
     /** @var GiteaService $gitea */
@@ -235,6 +243,21 @@ Flight::route('GET /api/tickets', function () {
     Flight::json(['tickets' => $list]);
 });
 
+// Admin: listar usuarios
+Flight::route('GET /api/admin/users', function () {
+    $user = getAuthUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var AuthService $auth */
+    $auth  = Flight::get('auth');
+    $users = $auth->getAllUsers();
+
+    Flight::json(['users' => $users]);
+});
+
 // Cambiar estado de un ticket
 Flight::route('PATCH /api/tickets/@id', function (string $id) {
     $user = getAuthUser();
@@ -247,7 +270,10 @@ Flight::route('PATCH /api/tickets/@id', function (string $id) {
     $tickets = Flight::get('tickets');
     $ticket  = $tickets->findById((int) $id);
 
-    if (!$ticket || (int) $ticket['user_id'] !== $user['id']) {
+    $isOwner = (int) $ticket['user_id'] === $user['id'];
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+
+    if (!$isOwner && !$isAdmin) {
         Flight::json(['error' => 'Ticket no encontrado.'], 404);
         return;
     }
@@ -284,7 +310,10 @@ Flight::route('GET /api/tickets/@id/comments', function (string $id) {
     $tickets = Flight::get('tickets');
     $ticket  = $tickets->findById((int) $id);
 
-    if (!$ticket || (int) $ticket['user_id'] !== $user['id']) {
+    $isOwner = (int) $ticket['user_id'] === $user['id'];
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+
+    if (!$isOwner && !$isAdmin) {
         Flight::json(['error' => 'Ticket no encontrado.'], 404);
         return;
     }
@@ -312,7 +341,10 @@ Flight::route('POST /api/tickets/@id/upload', function (string $id) {
     $tickets = Flight::get('tickets');
     $ticket  = $tickets->findById((int) $id);
 
-    if (!$ticket || (int) $ticket['user_id'] !== $user['id']) {
+    $isOwner = (int) $ticket['user_id'] === $user['id'];
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+
+    if (!$isOwner && !$isAdmin) {
         Flight::json(['error' => 'Ticket no encontrado.'], 404);
         return;
     }
@@ -369,7 +401,10 @@ Flight::route('POST /api/tickets/@id/comments', function (string $id) {
     $tickets = Flight::get('tickets');
     $ticket  = $tickets->findById((int) $id);
 
-    if (!$ticket || (int) $ticket['user_id'] !== $user['id']) {
+    $isOwner = (int) $ticket['user_id'] === $user['id'];
+    $isAdmin = ($user['role'] ?? '') === 'admin';
+
+    if (!$isOwner && !$isAdmin) {
         Flight::json(['error' => 'Ticket no encontrado.'], 404);
         return;
     }

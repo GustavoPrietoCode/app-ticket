@@ -71,9 +71,29 @@ class TicketService
     public function findByUserId(int $userId): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT * FROM tickets WHERE user_id = :user_id ORDER BY created_at DESC'
+            'SELECT t.*, u.name AS user_name
+             FROM tickets t
+             JOIN users u ON u.id = t.user_id
+             WHERE t.user_id = :user_id
+             ORDER BY t.created_at DESC'
         );
         $stmt->execute([':user_id' => $userId]);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Admin: devuelve todos los tickets de todos los usuarios.
+     */
+    public function findAll(): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT t.*, u.name AS user_name
+             FROM tickets t
+             JOIN users u ON u.id = t.user_id
+             ORDER BY t.created_at DESC'
+        );
+        $stmt->execute();
 
         return $stmt->fetchAll();
     }

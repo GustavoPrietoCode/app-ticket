@@ -76,8 +76,13 @@ export async function createTicketWithFiles(
   return { ok: res.ok, status: res.status, data }
 }
 
-export function getTickets() {
-  return request('/tickets')
+export function getTickets(userId?: number | null) {
+  const path = userId ? `/tickets?user_id=${userId}` : '/tickets'
+  return request(path)
+}
+
+export function getUsers() {
+  return request('/admin/users')
 }
 
 export function updateTicketStatus(id: number, status: string) {

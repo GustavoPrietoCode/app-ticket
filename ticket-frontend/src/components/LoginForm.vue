@@ -36,6 +36,7 @@ async function handleSubmit() {
     id: res.data.user.id,
     name: res.data.user.name,
     email: res.data.user.email,
+    role: res.data.user.role ?? 'user',
   }))
   emit('logged-in', res.data.user)
 }

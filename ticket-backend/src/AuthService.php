@@ -53,11 +53,17 @@ class AuthService
 
         $hash = password_hash($password, PASSWORD_BCRYPT);
 
+        // Asignar rol 'user' por defecto
+        $roleStmt = $this->pdo->prepare("SELECT id FROM roles WHERE name = 'user'");
+        $roleStmt->execute();
+        $roleId = $roleStmt->fetchColumn() ?: null;
+
         $stmt = $this->pdo->prepare(
-            'INSERT INTO users (name, email, password, created_at, updated_at)
-             VALUES (:name, :email, :password, NOW(), NOW())'
+            'INSERT INTO users (role_id, name, email, password, created_at, updated_at)
+             VALUES (:role_id, :name, :email, :password, NOW(), NOW())'
         );
         $stmt->execute([
+            ':role_id'  => $roleId,
             ':name'     => $name,
             ':email'    => $email,
             ':password' => $hash,
@@ -83,7 +89,12 @@ class AuthService
             return null;
         }
 
-        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE email = :email');
+        $stmt = $this->pdo->prepare(
+            'SELECT u.*, r.name AS role
+             FROM users u
+             LEFT JOIN roles r ON r.id = u.role_id
+             WHERE u.email = :email'
+        );
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch();
 
@@ -104,7 +115,7 @@ class AuthService
     }
 
     /**
-     * Busca un usuario por token (para el middleware de auth).
+     * Busca un usuario por token (para el middleware de auth). Incluye rol.
      */
     public function findByToken(?string $token): ?array
     {
@@ -112,7 +123,12 @@ class AuthService
             return null;
         }
 
-        $stmt = $this->pdo->prepare('SELECT id, name, email, created_at FROM users WHERE token = :token');
+        $stmt = $this->pdo->prepare(
+            'SELECT u.id, u.name, u.email, u.role_id, r.name AS role, u.created_at
+             FROM users u
+             LEFT JOIN roles r ON r.id = u.role_id
+             WHERE u.token = :token'
+        );
         $stmt->execute([':token' => $token]);
         $user = $stmt->fetch();
 
@@ -120,15 +136,36 @@ class AuthService
     }
 
     /**
-     * Busca un usuario por ID (sin password ni token).
+     * Busca un usuario por ID (sin password ni token). Incluye rol.
      */
     public function findById(int $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT id, name, email, created_at FROM users WHERE id = :id');
+        $stmt = $this->pdo->prepare(
+            'SELECT u.id, u.name, u.email, u.role_id, r.name AS role, u.created_at
+             FROM users u
+             LEFT JOIN roles r ON r.id = u.role_id
+             WHERE u.id = :id'
+        );
         $stmt->execute([':id' => $id]);
         $user = $stmt->fetch();
 
         return $user ?: null;
+    }
+
+    /**
+     * Admin: devuelve todos los usuarios con su rol.
+     */
+    public function getAllUsers(): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT u.id, u.name, u.email, r.name AS role, r.display_name AS role_display, u.created_at
+             FROM users u
+             LEFT JOIN roles r ON r.id = u.role_id
+             ORDER BY u.id ASC'
+        );
+        $stmt->execute();
+
+        return $stmt->fetchAll();
     }
 
     public function getErrors(): array

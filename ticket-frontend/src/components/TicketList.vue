@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getTickets, updateTicketStatus, addComment, getComments, uploadFile } from '../api'
+import { getTickets, updateTicketStatus, addComment, getComments, uploadFile, getUsers } from '../api'
 
 interface Ticket {
   id: number
@@ -8,8 +8,31 @@ interface Ticket {
   description: string
   status: 'open' | 'closed'
   gitea_issue_id: number | null
+  user_name?: string
   created_at: string
   updated_at: string
+}
+
+const savedUser = JSON.parse(localStorage.getItem('user') ?? '{}')
+const isAdmin = (savedUser.role ?? '') === 'admin'
+
+// Admin: lista de usuarios y filtro
+const users = ref<{ id: number; name: string; email: string; role_display: string }[]>([])
+const selectedUser = ref<number | null>(null)
+
+async function loadUsers() {
+  if (!isAdmin) return
+  const res = await getUsers()
+  if (res.ok) {
+    users.value = res.data.users as typeof users.value
+  }
+}
+
+function onUserFilterChange(event: Event) {
+  const val = (event.target as HTMLSelectElement).value
+  selectedUser.value = val ? parseInt(val) : null
+  page.value = 1
+  loadTickets()
 }
 
 const tickets = ref<Ticket[]>([])
@@ -89,7 +112,7 @@ async function loadTickets() {
   loading.value = true
   error.value = ''
 
-  const res = await getTickets()
+  const res = await getTickets(selectedUser.value)
 
   if (!res.ok) {
     error.value = res.data.error ?? 'Error al cargar los tickets.'
@@ -177,7 +200,10 @@ function renderBody(body: string): string {
 
 defineExpose({ loadTickets })
 
-onMounted(loadTickets)
+onMounted(() => {
+  loadTickets()
+  loadUsers()
+})
 </script>
 
 <template>
@@ -215,6 +241,15 @@ onMounted(loadTickets)
       <p>{{ error }}</p>
     </div>
 
+    <div v-if="isAdmin" class="admin-bar">
+      <select class="user-select" @change="onUserFilterChange">
+        <option value="">Todos los usuarios</option>
+        <option v-for="u in users" :key="u.id" :value="u.id">
+          {{ u.name }} — {{ u.role_display }}
+        </option>
+      </select>
+    </div>
+
     <div v-if="tickets.length" class="search-bar">
       <input
         v-model="search"
@@ -244,7 +279,10 @@ onMounted(loadTickets)
           </div>
           <div class="card-info">
             <span class="card-subject">{{ ticket.subject }}</span>
-            <span class="card-date">{{ ticket.created_at?.split(' ')[0] }}</span>
+            <span class="card-date">
+              {{ ticket.created_at?.split(' ')[0] }}
+              <span v-if="isAdmin && ticket.user_name" class="card-user"> — {{ ticket.user_name }}</span>
+            </span>
           </div>
           <span :class="statusClass(ticket.status)">{{ statusLabel(ticket.status) }}</span>
         </div>
@@ -401,6 +439,26 @@ onMounted(loadTickets)
 }
 .btn-refresh:hover:not(:disabled) { background: #eee; }
 
+/* ─── Admin bar ─── */
+.admin-bar {
+  margin-bottom: 0.75rem;
+}
+.user-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  background: #fff;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.user-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+
 /* ─── Buscador ─── */
 .search-bar {
   margin-bottom: 1rem;
@@ -499,6 +557,10 @@ onMounted(loadTickets)
 .card-date {
   font-size: 0.78rem;
   color: #999;
+}
+.card-user {
+  font-weight: 500;
+  color: #666;
 }
 
 .card-desc {
