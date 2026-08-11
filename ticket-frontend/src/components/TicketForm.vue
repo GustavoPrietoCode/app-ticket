@@ -4,6 +4,7 @@ import { createTicket } from '../api'
 
 const emit = defineEmits<{
   (e: 'ticket-created'): void
+  (e: 'cancel'): void
 }>()
 
 const subject = ref('')
@@ -72,9 +73,14 @@ function clearForm() {
         <textarea id="description" v-model="description" rows="5" :disabled="loading"></textarea>
       </div>
 
-      <button type="submit" :disabled="loading" class="btn">
-        {{ loading ? 'Enviando...' : 'Enviar ticket' }}
-      </button>
+      <div class="form-actions">
+        <button type="submit" :disabled="loading" class="btn">
+          {{ loading ? 'Enviando...' : 'Enviar ticket' }}
+        </button>
+        <button type="button" class="btn-cancel" @click="emit('cancel')" :disabled="loading">
+          Cancelar
+        </button>
+      </div>
     </form>
   </div>
 </template>
@@ -106,10 +112,21 @@ h2 { margin: 0 0 1.25rem; font-size: 1.3rem; }
   outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
 }
 
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
 .btn {
   display: inline-block; padding: 0.6rem 1.5rem; font-size: 1rem; font-weight: 500;
   color: #fff; background: #3b82f6; border: none; border-radius: 6px; cursor: pointer;
 }
 .btn:hover:not(:disabled) { background: #2563eb; }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-cancel {
+  padding: 0.6rem 1.5rem; font-size: 1rem; font-weight: 500;
+  color: #555; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;
+}
+.btn-cancel:hover:not(:disabled) { background: #eee; }
 </style>

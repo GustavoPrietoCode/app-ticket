@@ -33,6 +33,7 @@ const user = ref<User | null>(savedUser ? JSON.parse(savedUser) : null)
 
 const ticketList = ref<InstanceType<typeof TicketList> | null>(null)
 const showDropdown = ref(false)
+const showCreateForm = ref(false)
 
 function onLoggedIn(loggedUser: User) {
   user.value = loggedUser
@@ -60,7 +61,12 @@ function logout() {
 }
 
 function onTicketCreated() {
+  showCreateForm.value = false
   ticketList.value?.loadTickets()
+}
+
+function onCancelCreate() {
+  showCreateForm.value = false
 }
 
 function toggleDropdown() {
@@ -97,32 +103,46 @@ function closeDropdown() {
     <header class="app-header">
       <h1>App Tickets</h1>
 
-      <div class="dropdown" v-click-outside="closeDropdown">
-        <button class="dropdown-toggle" @click="toggleDropdown">
-          <span class="user-avatar">{{ user?.name?.charAt(0) }}</span>
-          <span class="user-name">{{ user?.name }}</span>
-          <span class="arrow" :class="{ open: showDropdown }">▾</span>
+      <div class="header-right">
+        <button
+          v-if="!showCreateForm"
+          class="btn-create"
+          @click="showCreateForm = true"
+        >
+          + Crear ticket
         </button>
 
-        <div v-if="showDropdown" class="dropdown-menu">
-          <div class="dropdown-user">
-            <span class="dropdown-avatar">{{ user?.name?.charAt(0) }}</span>
-            <div>
-              <p class="dropdown-name">{{ user?.name }}</p>
-              <p class="dropdown-email">{{ user?.email }}</p>
-            </div>
-          </div>
-          <hr />
-          <button class="dropdown-item logout" @click="logout">
-            Cerrar sesión
+        <div class="dropdown" v-click-outside="closeDropdown">
+          <button class="dropdown-toggle" @click="toggleDropdown">
+            <span class="user-avatar">{{ user?.name?.charAt(0) }}</span>
+            <span class="user-name">{{ user?.name }}</span>
+            <span class="arrow" :class="{ open: showDropdown }">▾</span>
           </button>
+
+          <div v-if="showDropdown" class="dropdown-menu">
+            <div class="dropdown-user">
+              <span class="dropdown-avatar">{{ user?.name?.charAt(0) }}</span>
+              <div>
+                <p class="dropdown-name">{{ user?.name }}</p>
+                <p class="dropdown-email">{{ user?.email }}</p>
+              </div>
+            </div>
+            <hr />
+            <button class="dropdown-item logout" @click="logout">
+              Cerrar sesión
+            </button>
+          </div>
         </div>
       </div>
     </header>
 
     <main>
-      <TicketList ref="ticketList" />
-      <TicketForm @ticket-created="onTicketCreated" />
+      <TicketForm
+        v-if="showCreateForm"
+        @ticket-created="onTicketCreated"
+        @cancel="onCancelCreate"
+      />
+      <TicketList v-else ref="ticketList" />
     </main>
   </template>
 </template>
@@ -151,6 +171,26 @@ header h1 {
   font-size: 1.5rem;
   color: #1e293b;
 }
+
+/* ─── Header right ─── */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-create {
+  padding: 0.45rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #fff;
+  background: #3b82f6;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-create:hover { background: #2563eb; }
 
 /* ─── Dropdown ─── */
 .dropdown {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getTickets, updateTicketStatus, addComment } from '../api'
 
 interface Ticket {
@@ -16,6 +16,19 @@ interface Ticket {
 const tickets = ref<Ticket[]>([])
 const loading = ref(true)
 const error = ref('')
+const filter = ref<'all' | 'open' | 'closed'>('all')
+
+const counts = computed(() => ({
+  all: tickets.value.length,
+  open: tickets.value.filter((t) => t.status !== 'closed').length,
+  closed: tickets.value.filter((t) => t.status === 'closed').length,
+}))
+
+const filteredTickets = computed(() => {
+  if (filter.value === 'all') return tickets.value
+  if (filter.value === 'open') return tickets.value.filter((t) => t.status !== 'closed')
+  return tickets.value.filter((t) => t.status === 'closed')
+})
 
 // Comentarios
 const expandedTicket = ref<number | null>(null)
@@ -82,9 +95,31 @@ onMounted(loadTickets)
 <template>
   <div class="ticket-list">
     <div class="list-header">
-      <h2>Tus tickets</h2>
+      <div class="filter-bar">
+        <button
+          class="filter-btn"
+          :class="{ active: filter === 'all' }"
+          @click="filter = 'all'"
+        >
+          Todos {{ counts.all }}
+        </button>
+        <button
+          class="filter-btn"
+          :class="{ active: filter === 'open' }"
+          @click="filter = 'open'"
+        >
+          Abiertos {{ counts.open }}
+        </button>
+        <button
+          class="filter-btn"
+          :class="{ active: filter === 'closed' }"
+          @click="filter = 'closed'"
+        >
+          Cerrados {{ counts.closed }}
+        </button>
+      </div>
       <button class="btn-refresh" @click="loadTickets" :disabled="loading">
-        {{ loading ? 'Cargando...' : '⟳ Refrescar' }}
+        {{ loading ? 'Cargando...' : '⟳' }}
       </button>
     </div>
 
@@ -98,7 +133,7 @@ onMounted(loadTickets)
 
     <div v-else class="cards">
       <div
-        v-for="ticket in tickets"
+        v-for="ticket in filteredTickets"
         :key="ticket.id"
         class="card"
         :class="{ 'card-closed': ticket.status === 'closed' }"
@@ -176,20 +211,41 @@ onMounted(loadTickets)
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.25rem;
-}
-.list-header h2 {
-  margin: 0;
-  font-size: 1.3rem;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.btn-refresh {
-  padding: 0.4rem 1rem;
-  font-size: 0.85rem;
+.filter-bar {
+  display: flex;
+  gap: 0.35rem;
+}
+.filter-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.83rem;
+  font-weight: 500;
   color: #555;
   background: #f5f5f5;
   border: 1px solid #ddd;
   border-radius: 6px;
   cursor: pointer;
+  white-space: nowrap;
+}
+.filter-btn:hover { background: #eee; }
+.filter-btn.active {
+  color: #fff;
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.btn-refresh {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.95rem;
+  color: #555;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1;
 }
 .btn-refresh:hover:not(:disabled) { background: #eee; }
 
