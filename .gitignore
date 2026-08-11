@@ -4,6 +4,7 @@ claude.md
 
 # PHP / Composer
 ticket-backend/vendor/
+ticket-backend/config.php
 
 # Node / Vue
 ticket-frontend/node_modules/
