@@ -6,7 +6,7 @@ interface Ticket {
   id: number
   subject: string
   description: string
-  status: 'open' | 'in_progress' | 'closed'
+  status: 'open' | 'closed'
   gitea_issue_id: number | null
   created_at: string
   updated_at: string
@@ -16,6 +16,9 @@ const tickets = ref<Ticket[]>([])
 const loading = ref(true)
 const error = ref('')
 const filter = ref<'all' | 'open' | 'closed'>('all')
+const search = ref('')
+const page = ref(1)
+const perPage = 8
 
 const counts = computed(() => ({
   all: tickets.value.length,
@@ -24,10 +27,37 @@ const counts = computed(() => ({
 }))
 
 const filteredTickets = computed(() => {
-  if (filter.value === 'all') return tickets.value
-  if (filter.value === 'open') return tickets.value.filter((t) => t.status !== 'closed')
-  return tickets.value.filter((t) => t.status === 'closed')
+  let list = tickets.value
+
+  if (filter.value === 'open') {
+    list = list.filter((t) => t.status !== 'closed')
+  } else if (filter.value === 'closed') {
+    list = list.filter((t) => t.status === 'closed')
+  }
+
+  if (search.value.trim()) {
+    const q = search.value.trim().toLowerCase()
+    list = list.filter((t) => t.subject.toLowerCase().includes(q))
+  }
+
+  return list
 })
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredTickets.value.length / perPage)))
+
+const pagedTickets = computed(() => {
+  const start = (page.value - 1) * perPage
+  return filteredTickets.value.slice(start, start + perPage)
+})
+
+// Reset página al cambiar filtro o búsqueda
+function setFilter(f: 'all' | 'open' | 'closed') {
+  filter.value = f
+  page.value = 1
+}
+function onSearchInput() {
+  page.value = 1
+}
 
 // Comentarios
 const expandedTicket = ref<number | null>(null)
@@ -125,7 +155,6 @@ async function sendComment(ticket: Ticket) {
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
     open: 'Abierto',
-    in_progress: 'En proceso',
     closed: 'Cerrado',
   }
   return labels[status] ?? status
@@ -158,21 +187,21 @@ onMounted(loadTickets)
         <button
           class="filter-btn"
           :class="{ active: filter === 'all' }"
-          @click="filter = 'all'"
+          @click="setFilter('all')"
         >
           Todos {{ counts.all }}
         </button>
         <button
           class="filter-btn"
           :class="{ active: filter === 'open' }"
-          @click="filter = 'open'"
+          @click="setFilter('open')"
         >
           Abiertos {{ counts.open }}
         </button>
         <button
           class="filter-btn"
           :class="{ active: filter === 'closed' }"
-          @click="filter = 'closed'"
+          @click="setFilter('closed')"
         >
           Cerrados {{ counts.closed }}
         </button>
@@ -186,13 +215,25 @@ onMounted(loadTickets)
       <p>{{ error }}</p>
     </div>
 
+    <div v-if="tickets.length" class="search-bar">
+      <input
+        v-model="search"
+        type="text"
+        class="search-input"
+        placeholder="Buscar por asunto..."
+        @input="onSearchInput"
+      />
+    </div>
+
     <p v-if="loading" class="loading">Cargando tickets...</p>
 
     <p v-else-if="!tickets.length" class="empty">No tienes tickets aún.</p>
 
+    <p v-else-if="!filteredTickets.length" class="empty">No se encontraron tickets.</p>
+
     <div v-else class="cards">
       <div
-        v-for="ticket in filteredTickets"
+        v-for="ticket in pagedTickets"
         :key="ticket.id"
         class="card"
         :class="{ 'card-closed': ticket.status === 'closed' }"
@@ -283,6 +324,27 @@ onMounted(loadTickets)
         </div>
       </div>
     </div>
+
+    <!-- Paginación -->
+    <div v-if="filteredTickets.length > perPage" class="pagination">
+      <button
+        class="page-btn"
+        :disabled="page <= 1"
+        @click="page--"
+      >
+        ‹ Anterior
+      </button>
+
+      <span class="page-info">{{ page }} / {{ totalPages }}</span>
+
+      <button
+        class="page-btn"
+        :disabled="page >= totalPages"
+        @click="page++"
+      >
+        Siguiente ›
+      </button>
+    </div>
   </div>
 </template>
 
@@ -338,6 +400,27 @@ onMounted(loadTickets)
   line-height: 1;
 }
 .btn-refresh:hover:not(:disabled) { background: #eee; }
+
+/* ─── Buscador ─── */
+.search-bar {
+  margin-bottom: 1rem;
+}
+.search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+.search-input::placeholder {
+  color: #aaa;
+}
 
 .alert-error {
   padding: 0.75rem 1rem;
@@ -440,7 +523,6 @@ onMounted(loadTickets)
   font-weight: 500;
 }
 .badge-open { background: #dcfce7; color: #15803d; }
-.badge-in_progress { background: #fef3c7; color: #b45309; }
 .badge-closed { background: #fee2e2; color: #b91c1c; }
 
 /* ─── Acciones ─── */
@@ -463,6 +545,35 @@ onMounted(loadTickets)
 .btn-open { color: #15803d; border-color: #bbf7d0; }
 .btn-open:hover { background: #f0fdf4; }
 .btn-comment { color: #555; }
+
+/* ─── Paginación ─── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.page-btn {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  color: #555;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.page-btn:hover:not(:disabled) { background: #f5f5f5; }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.page-info {
+  font-size: 0.85rem;
+  color: #888;
+  font-weight: 500;
+}
 
 /* ─── Sección de comentarios ─── */
 .comment-section {
