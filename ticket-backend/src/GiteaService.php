@@ -22,27 +22,87 @@ class GiteaService
      */
     public function createIssue(string $title, string $description, string $reporterName, string $reporterEmail): ?array
     {
-        $url = "{$this->baseUrl}/api/v1/repos/{$this->owner}/{$this->repo}/issues";
-
         $body = "**Reportado por:** {$reporterName} <{$reporterEmail}>\n\n{$description}";
 
-        $payload = json_encode([
+        $result = $this->request('POST', '/issues', [
             'title' => $title,
             'body'  => $body,
         ]);
 
+        if (!$result || $result['http'] !== 201) {
+            return null;
+        }
+
+        $issue = $result['data'];
+
+        return [
+            'number' => $issue['number'] ?? null,
+            'url'    => $issue['html_url'] ?? null,
+        ];
+    }
+
+    /**
+     * Obtiene el estado actual de un issue desde Gitea.
+     */
+    public function getIssue(int $number): ?array
+    {
+        $result = $this->request('GET', "/issues/{$number}");
+
+        if (!$result || $result['http'] !== 200) {
+            return null;
+        }
+
+        $issue = $result['data'];
+
+        return [
+            'state' => $issue['state'] ?? null,       // 'open' | 'closed'
+            'title' => $issue['title'] ?? '',
+        ];
+    }
+
+    /**
+     * Abre o cierra un issue en Gitea.
+     */
+    public function updateIssueStatus(int $number, string $state): bool
+    {
+        $result = $this->request('PATCH', "/issues/{$number}", [
+            'state' => $state,
+        ]);
+
+        return $result !== null && $result['http'] === 200;
+    }
+
+    /**
+     * Añade un comentario a un issue en Gitea.
+     */
+    public function addComment(int $number, string $body): bool
+    {
+        $result = $this->request('POST', "/issues/{$number}/comments", [
+            'body' => $body,
+        ]);
+
+        return $result !== null && $result['http'] === 201;
+    }
+
+    // ─── Helper HTTP ──────────────────────────────────────────────────
+
+    private function request(string $method, string $path, ?array $payload = null): ?array
+    {
+        $url  = "{$this->baseUrl}/api/v1/repos/{$this->owner}/{$this->repo}{$path}";
+        $json = $payload ? json_encode($payload) : null;
+
         $ch = curl_init($url);
         curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_CUSTOMREQUEST  => $method,
+            CURLOPT_POSTFIELDS     => $json,
             CURLOPT_HTTPHEADER     => [
                 'Authorization: token ' . $this->token,
                 'Content-Type: application/json',
                 'Accept: application/json',
+                'Content-Length: ' . strlen($json ?? ''),
             ],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 15,
-            // Entorno local con certificado self-signed o similar
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
         ]);
@@ -51,15 +111,13 @@ class GiteaService
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($httpCode !== 201 || !$response) {
+        if (!$response) {
             return null;
         }
 
-        $issue = json_decode($response, true);
-
         return [
-            'number' => $issue['number'] ?? null,
-            'url'    => $issue['html_url'] ?? null,
+            'http' => $httpCode,
+            'data' => json_decode($response, true),
         ];
     }
 }

@@ -58,3 +58,17 @@ export function createTicket(subject: string, description: string) {
 export function getTickets() {
   return request('/tickets')
 }
+
+export function updateTicketStatus(id: number, status: string) {
+  return request(`/tickets/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function addComment(id: number, comment: string) {
+  return request(`/tickets/${id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ comment }),
+  })
+}

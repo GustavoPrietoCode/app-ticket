@@ -24,7 +24,7 @@ Flight::set('gitea', new GiteaService($config['gitea']));
 
 Flight::before('start', function () {
     header('Access-Control-Allow-Origin: http://localhost:5173');
-    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, Accept, X-Requested-With, Authorization');
     header('Access-Control-Max-Age: 86400');
 
@@ -157,7 +157,7 @@ Flight::route('POST /api/tickets', function () {
     Flight::json(['ticket' => $ticket], 201);
 });
 
-// Listar tickets del usuario autenticado
+// Listar tickets del usuario autenticado (con sincronización desde Gitea)
 Flight::route('GET /api/tickets', function () {
     $user = getAuthUser();
     if (!$user) {
@@ -169,7 +169,104 @@ Flight::route('GET /api/tickets', function () {
     $tickets = Flight::get('tickets');
     $list    = $tickets->findByUserId($user['id']);
 
+    // Sincronizar estado desde Gitea para tickets con issue asociado
+    /** @var GiteaService $gitea */
+    $gitea = Flight::get('gitea');
+    foreach ($list as &$ticket) {
+        if (!$ticket['gitea_issue_id']) {
+            continue;
+        }
+        $issue = $gitea->getIssue((int) $ticket['gitea_issue_id']);
+        if (!$issue) {
+            continue;
+        }
+        // Mapear estado de Gitea → nuestro estado
+        $giteaState = $issue['state']; // 'open' o 'closed'
+        if ($giteaState === 'closed' && $ticket['status'] !== 'closed') {
+            $tickets->updateStatus((int) $ticket['id'], 'closed');
+            $ticket['status'] = 'closed';
+        } elseif ($giteaState === 'open' && $ticket['status'] === 'closed') {
+            $tickets->updateStatus((int) $ticket['id'], 'open');
+            $ticket['status'] = 'open';
+        }
+    }
+    unset($ticket);
+
     Flight::json(['tickets' => $list]);
+});
+
+// Cambiar estado de un ticket
+Flight::route('PATCH /api/tickets/@id', function (string $id) {
+    $user = getAuthUser();
+    if (!$user) {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var TicketService $tickets */
+    $tickets = Flight::get('tickets');
+    $ticket  = $tickets->findById((int) $id);
+
+    if (!$ticket || (int) $ticket['user_id'] !== $user['id']) {
+        Flight::json(['error' => 'Ticket no encontrado.'], 404);
+        return;
+    }
+
+    $body   = json_decode(file_get_contents('php://input'), true);
+    $status = $body['status'] ?? '';
+
+    if (!in_array($status, ['open', 'in_progress', 'closed'], true)) {
+        Flight::json(['error' => 'Estado no válido. Usa open, in_progress o closed.'], 422);
+        return;
+    }
+
+    // Si tiene issue en Gitea, sincronizar cierre/apertura
+    if ($ticket['gitea_issue_id'] && in_array($status, ['open', 'closed'], true)) {
+        /** @var GiteaService $gitea */
+        $gitea = Flight::get('gitea');
+        $gitea->updateIssueStatus((int) $ticket['gitea_issue_id'], $status);
+    }
+
+    $tickets->updateStatus((int) $id, $status);
+
+    Flight::json(['status' => $status]);
+});
+
+// Añadir comentario a un ticket
+Flight::route('POST /api/tickets/@id/comments', function (string $id) {
+    $user = getAuthUser();
+    if (!$user) {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var TicketService $tickets */
+    $tickets = Flight::get('tickets');
+    $ticket  = $tickets->findById((int) $id);
+
+    if (!$ticket || (int) $ticket['user_id'] !== $user['id']) {
+        Flight::json(['error' => 'Ticket no encontrado.'], 404);
+        return;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    $comment = trim(strip_tags($body['comment'] ?? ''));
+
+    if ($comment === '') {
+        Flight::json(['error' => 'El comentario no puede estar vacío.'], 422);
+        return;
+    }
+
+    $message = "**{$user['name']}:** {$comment}";
+
+    // Si tiene issue en Gitea, añadir comentario allí también
+    if ($ticket['gitea_issue_id']) {
+        /** @var GiteaService $gitea */
+        $gitea = Flight::get('gitea');
+        $gitea->addComment((int) $ticket['gitea_issue_id'], $message);
+    }
+
+    Flight::json(['comment' => $message], 201);
 });
 
 Flight::start();

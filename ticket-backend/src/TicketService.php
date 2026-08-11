@@ -88,6 +88,17 @@ class TicketService
     }
 
     /**
+     * Actualiza el estado de un ticket.
+     */
+    public function updateStatus(int $ticketId, string $status): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE tickets SET status = :status, updated_at = NOW() WHERE id = :id'
+        );
+        return $stmt->execute([':status' => $status, ':id' => $ticketId]);
+    }
+
+    /**
      * Devuelve los errores de validación de la última llamada a create().
      */
     public function getErrors(): array
