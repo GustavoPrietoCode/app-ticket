@@ -199,7 +199,7 @@ onMounted(loadTickets)
       >
         <div class="card-top">
           <div class="card-id-box">
-            <span class="card-id">#{{ ticket.id }}</span>
+            <span class="card-id">#{{ ticket.gitea_issue_id ?? 0 }}</span>
           </div>
           <div class="card-info">
             <span class="card-subject">{{ ticket.subject }}</span>

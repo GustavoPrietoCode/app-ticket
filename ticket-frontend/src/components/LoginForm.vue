@@ -11,6 +11,7 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const showForgotMessage = ref(false)
 
 async function handleSubmit() {
   error.value = ''
@@ -63,6 +64,16 @@ async function handleSubmit() {
         {{ loading ? 'Entrando...' : 'Entrar' }}
       </button>
     </form>
+
+    <p class="forgot-password">
+      <a href="#" @click.prevent="showForgotMessage = !showForgotMessage">
+        He olvidado la contraseña
+      </a>
+    </p>
+
+    <p v-if="showForgotMessage" class="forgot-message">
+      Póngase en contacto con el administrador.
+    </p>
 
     <p class="switch">
       ¿No tienes cuenta?
@@ -130,4 +141,22 @@ h2 {
 }
 .switch a { color: #3b82f6; text-decoration: none; }
 .switch a:hover { text-decoration: underline; }
+
+.forgot-password {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+.forgot-password a { color: #888; text-decoration: none; }
+.forgot-password a:hover { color: #555; text-decoration: underline; }
+
+.forgot-message {
+  text-align: center;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #f5f5f5;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #666;
+}
 </style>

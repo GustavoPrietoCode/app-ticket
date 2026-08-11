@@ -10,6 +10,7 @@ const emit = defineEmits<{
 const name = ref('')
 const email = ref('')
 const password = ref('')
+const passwordConfirm = ref('')
 const loading = ref(false)
 const error = ref('')
 const success = ref(false)
@@ -17,13 +18,18 @@ const success = ref(false)
 async function handleSubmit() {
   error.value = ''
 
-  if (!name.value.trim() || !email.value.trim() || !password.value.trim()) {
+  if (!name.value.trim() || !email.value.trim() || !password.value.trim() || !passwordConfirm.value.trim()) {
     error.value = 'Todos los campos son obligatorios.'
     return
   }
 
   if (password.value.length < 6) {
     error.value = 'La contraseña debe tener al menos 6 caracteres.'
+    return
+  }
+
+  if (password.value !== passwordConfirm.value) {
+    error.value = 'Las contraseñas no coinciden.'
     return
   }
 
@@ -72,6 +78,11 @@ async function handleSubmit() {
       <div class="field">
         <label for="password">Contraseña</label>
         <input id="password" v-model="password" type="password" :disabled="loading" />
+      </div>
+
+      <div class="field">
+        <label for="passwordConfirm">Repetir contraseña</label>
+        <input id="passwordConfirm" v-model="passwordConfirm" type="password" :disabled="loading" />
       </div>
 
       <button type="submit" :disabled="loading" class="btn">
@@ -146,4 +157,5 @@ h2 {
 }
 .switch a { color: #3b82f6; text-decoration: none; }
 .switch a:hover { text-decoration: underline; }
+
 </style>
