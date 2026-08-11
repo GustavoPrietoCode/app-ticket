@@ -8,7 +8,6 @@ interface Ticket {
   description: string
   status: 'open' | 'in_progress' | 'closed'
   gitea_issue_id: number | null
-  gitea_url?: string
   created_at: string
   updated_at: string
 }
@@ -199,19 +198,19 @@ onMounted(loadTickets)
         :class="{ 'card-closed': ticket.status === 'closed' }"
       >
         <div class="card-top">
-          <span class="card-id">#{{ ticket.id }}</span>
+          <div class="card-id-box">
+            <span class="card-id">#{{ ticket.id }}</span>
+          </div>
+          <div class="card-info">
+            <span class="card-subject">{{ ticket.subject }}</span>
+            <span class="card-date">{{ ticket.created_at?.split(' ')[0] }}</span>
+          </div>
           <span :class="statusClass(ticket.status)">{{ statusLabel(ticket.status) }}</span>
         </div>
 
-        <h3 class="card-subject">{{ ticket.subject }}</h3>
         <p class="card-desc">{{ ticket.description }}</p>
 
-        <div class="card-meta">
-          <span>{{ ticket.created_at?.split(' ')[0] }}</span>
-          <span v-if="ticket.gitea_url">
-            · <a :href="ticket.gitea_url" target="_blank" rel="noopener">Ver en Gitea ↗</a>
-          </span>
-        </div>
+        <hr class="card-divider" />
 
         <!-- Acciones -->
         <div class="card-actions">
@@ -229,7 +228,6 @@ onMounted(loadTickets)
           >
             Reabrir
           </button>
-
           <button class="btn-action btn-comment" @click="toggleExpand(ticket.id)">
             💬 Comentar
           </button>
@@ -379,21 +377,59 @@ onMounted(loadTickets)
 .card-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-.card-id { font-size: 0.8rem; color: #888; font-weight: 500; }
-
-.card-subject { margin: 0 0 0.4rem; font-size: 1.05rem; }
-.card-desc { margin: 0 0 0.75rem; font-size: 0.9rem; color: #555; }
-
-.card-meta {
-  font-size: 0.8rem;
-  color: #999;
+  gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
-.card-meta a { color: #3b82f6; text-decoration: none; }
-.card-meta a:hover { text-decoration: underline; }
+
+.card-id-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 48px;
+  background: #eff6ff;
+  border: 2px solid #bfdbfe;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.card-id {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+.card-subject {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-date {
+  font-size: 0.78rem;
+  color: #999;
+}
+
+.card-desc {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.5;
+}
+
+.card-divider {
+  margin: 0 0 0.75rem;
+  border: none;
+  border-top: 1px solid #e8e8e8;
+}
 
 /* Badges */
 .badge {
@@ -403,15 +439,16 @@ onMounted(loadTickets)
   font-size: 0.78rem;
   font-weight: 500;
 }
-.badge-open { background: #dbeafe; color: #1d4ed8; }
+.badge-open { background: #dcfce7; color: #15803d; }
 .badge-in_progress { background: #fef3c7; color: #b45309; }
-.badge-closed { background: #d1fae5; color: #065f46; }
+.badge-closed { background: #fee2e2; color: #b91c1c; }
 
 /* ─── Acciones ─── */
 .card-actions {
   display: flex;
   gap: 0.5rem;
 }
+
 .btn-action {
   padding: 0.3rem 0.75rem;
   font-size: 0.82rem;
