@@ -85,6 +85,13 @@ export function getUsers() {
   return request('/admin/users')
 }
 
+export function updateUserRole(userId: number, roleId: number) {
+  return request(`/admin/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role_id: roleId }),
+  })
+}
+
 export function updateTicketStatus(id: number, status: string) {
   return request(`/tickets/${id}`, {
     method: 'PATCH',

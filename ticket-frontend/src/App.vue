@@ -4,6 +4,7 @@ import LoginForm from './components/LoginForm.vue'
 import RegisterForm from './components/RegisterForm.vue'
 import TicketForm from './components/TicketForm.vue'
 import TicketList from './components/TicketList.vue'
+import UserList from './components/UserList.vue'
 
 // Directive para cerrar el dropdown al hacer clic fuera
 const vClickOutside = {
@@ -24,6 +25,7 @@ interface User {
   id: number
   name: string
   email: string
+  role?: string
   token: string
 }
 
@@ -34,6 +36,9 @@ const user = ref<User | null>(savedUser ? JSON.parse(savedUser) : null)
 const ticketList = ref<InstanceType<typeof TicketList> | null>(null)
 const showDropdown = ref(false)
 const showCreateForm = ref(false)
+const showUsers = ref(false)
+
+const isAdmin = (user.value?.role ?? '') === 'admin'
 
 function onLoggedIn(loggedUser: User) {
   user.value = loggedUser
@@ -105,7 +110,15 @@ function closeDropdown() {
 
       <div class="header-right">
         <button
-          v-if="!showCreateForm"
+          v-if="isAdmin && !showCreateForm"
+          class="btn-create btn-users"
+          :class="{ active: showUsers }"
+          @click="showUsers = !showUsers; showCreateForm = false"
+        >
+          {{ showUsers ? 'Ver tickets' : 'Usuarios' }}
+        </button>
+        <button
+          v-if="!showCreateForm && !showUsers"
           class="btn-create"
           @click="showCreateForm = true"
         >
@@ -142,6 +155,7 @@ function closeDropdown() {
         @ticket-created="onTicketCreated"
         @cancel="onCancelCreate"
       />
+      <UserList v-else-if="showUsers" />
       <TicketList v-else ref="ticketList" />
     </main>
   </template>
@@ -191,6 +205,17 @@ header h1 {
   white-space: nowrap;
 }
 .btn-create:hover { background: #2563eb; }
+.btn-users {
+  background: #f5f5f5;
+  color: #555;
+  border: 1px solid #ddd;
+}
+.btn-users:hover { background: #e5e5e5; }
+.btn-users.active {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #3b82f6;
+}
 
 /* ─── Dropdown ─── */
 .dropdown {

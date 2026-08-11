@@ -258,6 +258,29 @@ Flight::route('GET /api/admin/users', function () {
     Flight::json(['users' => $users]);
 });
 
+// Admin: cambiar rol de un usuario
+Flight::route('PATCH /api/admin/users/@id', function (string $id) {
+    $user = getAuthUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    $body   = json_decode(file_get_contents('php://input'), true);
+    $roleId = isset($body['role_id']) ? (int) $body['role_id'] : 0;
+
+    if ($roleId <= 0) {
+        Flight::json(['error' => 'role_id inválido.'], 422);
+        return;
+    }
+
+    /** @var AuthService $auth */
+    $auth = Flight::get('auth');
+    $auth->updateRole((int) $id, $roleId);
+
+    Flight::json(['ok' => true]);
+});
+
 // Cambiar estado de un ticket
 Flight::route('PATCH /api/tickets/@id', function (string $id) {
     $user = getAuthUser();

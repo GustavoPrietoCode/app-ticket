@@ -153,6 +153,15 @@ class AuthService
     }
 
     /**
+     * Admin: actualiza el rol de un usuario.
+     */
+    public function updateRole(int $userId, int $roleId): bool
+    {
+        $stmt = $this->pdo->prepare('UPDATE users SET role_id = :role_id WHERE id = :id');
+        return $stmt->execute([':role_id' => $roleId, ':id' => $userId]);
+    }
+
+    /**
      * Admin: devuelve todos los usuarios con su rol.
      */
     public function getAllUsers(): array
