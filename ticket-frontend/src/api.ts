@@ -55,6 +55,27 @@ export function createTicket(subject: string, description: string) {
   })
 }
 
+export async function createTicketWithFiles(
+  subject: string,
+  description: string,
+  files: File[],
+) {
+  const token = localStorage.getItem('token')
+  const formData = new FormData()
+  formData.append('subject', subject)
+  formData.append('description', description)
+  files.forEach((f) => formData.append('images[]', f))
+
+  const res = await fetch(`${BASE_URL}/tickets`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  })
+
+  const data = await res.json()
+  return { ok: res.ok, status: res.status, data }
+}
+
 export function getTickets() {
   return request('/tickets')
 }
@@ -64,6 +85,21 @@ export function updateTicketStatus(id: number, status: string) {
     method: 'PATCH',
     body: JSON.stringify({ status }),
   })
+}
+
+export async function uploadFile(ticketId: number, file: File) {
+  const token = localStorage.getItem('token')
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${BASE_URL}/tickets/${ticketId}/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  })
+
+  const data = await res.json()
+  return { ok: res.ok, status: res.status, data }
 }
 
 export function getComments(id: number) {

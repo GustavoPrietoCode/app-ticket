@@ -107,6 +107,47 @@ class GiteaService
         return $result !== null && $result['http'] === 201;
     }
 
+    /**
+     * Sube un archivo adjunto a un issue. Devuelve la URL del adjunto o null.
+     */
+    public function uploadAsset(int $number, string $filePath, string $fileName): ?string
+    {
+        $url = "{$this->baseUrl}/api/v1/repos/{$this->owner}/{$this->repo}/issues/{$number}/assets";
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => [
+                'attachment' => new \CURLFile($filePath, mime_content_type($filePath), $fileName),
+            ],
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: token ' . $this->token,
+                'Accept: application/json',
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 201 || !$response) {
+            return null;
+        }
+
+        $data = json_decode($response, true);
+
+        if (empty($data['uuid'])) {
+            return null;
+        }
+
+        // Construir URL pública del adjunto
+        return "{$this->baseUrl}/attachments/{$data['uuid']}";
+    }
+
     // ─── Helper HTTP ──────────────────────────────────────────────────
 
     private function request(string $method, string $path, ?array $payload = null): ?array

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getTickets, updateTicketStatus, addComment, getComments } from '../api'
+import { getTickets, updateTicketStatus, addComment, getComments, uploadFile } from '../api'
 
 interface Ticket {
   id: number
@@ -36,6 +36,25 @@ const commentText = ref('')
 const sendingComment = ref(false)
 const comments = ref<{ id: number; body: string; author: string; created_at: string }[]>([])
 const loadingComments = ref(false)
+const uploadingFile = ref(false)
+
+async function handleFileUpload(ticketId: number, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  uploadingFile.value = true
+  const res = await uploadFile(ticketId, file)
+  uploadingFile.value = false
+
+  if (res.ok && res.data.url) {
+    // Insertar markdown de imagen en el textarea
+    commentText.value += `\n![${file.name}](${res.data.url})\n`
+  }
+
+  // Limpiar input para permitir re-subir el mismo archivo
+  input.value = ''
+}
 
 async function loadTickets() {
   loading.value = true
@@ -115,6 +134,17 @@ function statusLabel(status: string): string {
 
 function statusClass(status: string): string {
   return `badge badge-${status}`
+}
+
+function renderBody(body: string): string {
+  // Convertir ![alt](url) en enlaces clickables
+  let html = body.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">📷 $1</a>',
+  )
+  // Convertir saltos de línea en <br>
+  html = html.replace(/\n/g, '<br>')
+  return html
 }
 
 defineExpose({ loadTickets })
@@ -220,7 +250,7 @@ onMounted(loadTickets)
                 <span class="comment-author">{{ c.author }}</span>
                 <span class="comment-date">{{ c.created_at?.split('T')[0] }}</span>
               </div>
-              <div class="comment-body" v-html="c.body"></div>
+              <div class="comment-body" v-html="renderBody(c.body)"></div>
             </div>
           </div>
 
@@ -232,13 +262,25 @@ onMounted(loadTickets)
               rows="2"
               :disabled="sendingComment"
             ></textarea>
-            <button
-              class="btn-send"
-              @click="sendComment(ticket)"
-              :disabled="sendingComment || !commentText.trim()"
-            >
-              {{ sendingComment ? 'Enviando...' : 'Enviar' }}
-            </button>
+            <div class="comment-actions">
+              <label class="btn-attach" :class="{ disabled: uploadingFile }">
+                {{ uploadingFile ? 'Subiendo...' : '📎 Imagen' }}
+                <input
+                  type="file"
+                  accept="image/*"
+                  class="file-input"
+                  :disabled="uploadingFile || sendingComment"
+                  @change="handleFileUpload(ticket.id, $event)"
+                />
+              </label>
+              <button
+                class="btn-send"
+                @click="sendComment(ticket)"
+                :disabled="sendingComment || !commentText.trim()"
+              >
+                {{ sendingComment ? 'Enviando...' : 'Enviar' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -433,6 +475,8 @@ onMounted(loadTickets)
 }
 .comment-body :deep(p) { margin: 0.25rem 0; }
 .comment-body :deep(strong) { font-weight: 600; }
+.comment-body :deep(a) { color: #3b82f6; text-decoration: none; }
+.comment-body :deep(a:hover) { text-decoration: underline; }
 
 /* ─── Formulario de comentario ─── */
 .comment-form {
@@ -456,8 +500,31 @@ onMounted(loadTickets)
   box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
 }
 
+.comment-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-attach {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  color: #555;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-attach:hover:not(.disabled) { background: #eee; }
+.btn-attach.disabled { opacity: 0.5; cursor: not-allowed; }
+
+.file-input {
+  display: none;
+}
+
 .btn-send {
-  align-self: flex-end;
   padding: 0.35rem 1rem;
   font-size: 0.85rem;
   color: #fff;

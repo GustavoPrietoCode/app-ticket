@@ -119,15 +119,27 @@ Flight::route('POST /api/tickets', function () {
         return;
     }
 
-    $body = json_decode(file_get_contents('php://input'), true);
+    // Detectar si es JSON o multipart (con imágenes)
+    $contentType = Flight::request()->getHeader('Content-Type') ?? '';
 
-    if (!$body) {
-        Flight::json(['error' => 'Cuerpo JSON no válido.'], 400);
-        return;
+    if (str_contains($contentType, 'multipart/form-data')) {
+        $body = [
+            'subject'     => $_POST['subject'] ?? '',
+            'description' => $_POST['description'] ?? '',
+            'user_id'     => $user['id'],
+        ];
+        $images = $_FILES['images'] ?? null;
+    } else {
+        $body   = json_decode(file_get_contents('php://input'), true);
+        $images = null;
+
+        if (!$body) {
+            Flight::json(['error' => 'Cuerpo JSON no válido.'], 400);
+            return;
+        }
+
+        $body['user_id'] = $user['id'];
     }
-
-    // Asociar al usuario autenticado
-    $body['user_id'] = $user['id'];
 
     /** @var TicketService $tickets */
     $tickets = Flight::get('tickets');
@@ -138,7 +150,7 @@ Flight::route('POST /api/tickets', function () {
         return;
     }
 
-    // Crear issue en Gitea (no bloquea la respuesta si falla)
+    // Crear issue en Gitea
     /** @var GiteaService $gitea */
     $gitea  = Flight::get('gitea');
     $issue  = $gitea->createIssue(
@@ -152,6 +164,34 @@ Flight::route('POST /api/tickets', function () {
         $tickets->setGiteaIssueId((int) $ticket['id'], $issue['number']);
         $ticket['gitea_issue_id'] = $issue['number'];
         $ticket['gitea_url']      = $issue['url'];
+
+        // Subir imágenes si las hay
+        if ($images && !empty($images['name'][0])) {
+            $imageUrls = [];
+            $allowed   = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+            foreach ($images['name'] as $i => $name) {
+                if ($images['error'][$i] !== UPLOAD_ERR_OK) continue;
+                if ($images['size'][$i] > 5 * 1024 * 1024) continue;
+                if (!in_array($images['type'][$i], $allowed, true)) continue;
+
+                $url = $gitea->uploadAsset(
+                    (int) $issue['number'],
+                    $images['tmp_name'][$i],
+                    $name
+                );
+                if ($url) {
+                    $imageUrls[] = "![{$name}]({$url})";
+                }
+            }
+
+            if (!empty($imageUrls)) {
+                $gitea->addComment(
+                    (int) $issue['number'],
+                    "**{$user['name']}** adjuntó:\n\n" . implode("\n", $imageUrls)
+                );
+            }
+        }
     }
 
     Flight::json(['ticket' => $ticket], 201);
@@ -258,6 +298,63 @@ Flight::route('GET /api/tickets/@id/comments', function (string $id) {
     }
 
     Flight::json(['comments' => $comments]);
+});
+
+// Subir imagen adjunta a un ticket
+Flight::route('POST /api/tickets/@id/upload', function (string $id) {
+    $user = getAuthUser();
+    if (!$user) {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var TicketService $tickets */
+    $tickets = Flight::get('tickets');
+    $ticket  = $tickets->findById((int) $id);
+
+    if (!$ticket || (int) $ticket['user_id'] !== $user['id']) {
+        Flight::json(['error' => 'Ticket no encontrado.'], 404);
+        return;
+    }
+
+    if (!$ticket['gitea_issue_id']) {
+        Flight::json(['error' => 'Este ticket no tiene un issue asociado en Gitea.'], 400);
+        return;
+    }
+
+    $file = $_FILES['file'] ?? null;
+    if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
+        Flight::json(['error' => 'No se recibió ningún archivo.'], 422);
+        return;
+    }
+
+    // Validar tipo
+    $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!in_array($file['type'], $allowed, true)) {
+        Flight::json(['error' => 'Solo se permiten imágenes (JPG, PNG, GIF, WebP).'], 422);
+        return;
+    }
+
+    // Validar tamaño (máx 5 MB)
+    if ($file['size'] > 5 * 1024 * 1024) {
+        Flight::json(['error' => 'La imagen no puede superar los 5 MB.'], 422);
+        return;
+    }
+
+    /** @var GiteaService $gitea */
+    $gitea = Flight::get('gitea');
+    $imageUrl = $gitea->uploadAsset(
+        (int) $ticket['gitea_issue_id'],
+        $file['tmp_name'],
+        $file['name']
+    );
+
+    if (!$imageUrl) {
+        Flight::json(['error' => 'Error al subir la imagen a Gitea.'], 500);
+        return;
+    }
+
+    Flight::json(['url' => $imageUrl], 201);
 });
 
 // Añadir comentario a un ticket

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { createTicket } from '../api'
+import { createTicketWithFiles } from '../api'
 
 const emit = defineEmits<{
   (e: 'ticket-created'): void
@@ -9,10 +9,22 @@ const emit = defineEmits<{
 
 const subject = ref('')
 const description = ref('')
+const selectedFiles = ref<File[]>([])
 
 const loading = ref(false)
 const errors = ref<string[]>([])
 const createdTicket = ref<Record<string, unknown> | null>(null)
+
+function onFilesSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (input.files) {
+    selectedFiles.value = [...input.files]
+  }
+}
+
+function removeFile(index: number) {
+  selectedFiles.value.splice(index, 1)
+}
 
 async function handleSubmit() {
   errors.value = []
@@ -26,7 +38,11 @@ async function handleSubmit() {
   loading.value = true
 
   try {
-    const res = await createTicket(subject.value.trim(), description.value.trim())
+    const res = await createTicketWithFiles(
+      subject.value.trim(),
+      description.value.trim(),
+      selectedFiles.value,
+    )
 
     if (!res.ok) {
       errors.value = res.data.messages ?? [res.data.error ?? 'Error desconocido.']
@@ -46,6 +62,7 @@ async function handleSubmit() {
 function clearForm() {
   subject.value = ''
   description.value = ''
+  selectedFiles.value = []
 }
 </script>
 
@@ -71,6 +88,30 @@ function clearForm() {
       <div class="field">
         <label for="description">Descripción</label>
         <textarea id="description" v-model="description" rows="5" :disabled="loading"></textarea>
+      </div>
+
+      <!-- Imágenes -->
+      <div class="field">
+        <label class="btn-attach" :class="{ disabled: loading }">
+          {{ loading ? 'Subiendo...' : '📎 Adjuntar imágenes' }}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            class="file-input"
+            :disabled="loading"
+            @change="onFilesSelected"
+          />
+        </label>
+      </div>
+
+      <!-- Vista previa de archivos seleccionados -->
+      <div v-if="selectedFiles.length" class="file-list">
+        <div v-for="(file, i) in selectedFiles" :key="i" class="file-item">
+          <span class="file-name">{{ file.name }}</span>
+          <span class="file-size">({{ (file.size / 1024).toFixed(1) }} KB)</span>
+          <button type="button" class="file-remove" @click="removeFile(i)">✕</button>
+        </div>
       </div>
 
       <div class="form-actions">
@@ -112,9 +153,49 @@ h2 { margin: 0 0 1.25rem; font-size: 1.3rem; }
   outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
 }
 
-.form-actions {
+/* Adjuntar */
+.btn-attach {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  color: #555;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-attach:hover:not(.disabled) { background: #eee; }
+.btn-attach.disabled { opacity: 0.5; cursor: not-allowed; }
+
+.file-input { display: none; }
+
+.file-list {
+  margin-bottom: 1rem;
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  background: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+.file-name { color: #333; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-size { color: #999; white-space: nowrap; }
+.file-remove {
+  background: none; border: none; color: #b91c1c; cursor: pointer;
+  font-size: 0.85rem; padding: 0 0.2rem;
+}
+.file-remove:hover { color: #dc2626; }
+
+.form-actions {
+  display: flex; gap: 0.75rem; margin-top: 0.5rem;
 }
 
 .btn {
