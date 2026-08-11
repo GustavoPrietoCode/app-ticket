@@ -31,6 +31,11 @@ async function handleSubmit() {
   }
 
   localStorage.setItem('token', res.data.user.token)
+  localStorage.setItem('user', JSON.stringify({
+    id: res.data.user.id,
+    name: res.data.user.name,
+    email: res.data.user.email,
+  }))
   emit('logged-in', res.data.user)
 }
 </script>
