@@ -5,6 +5,10 @@ import RegisterForm from './components/RegisterForm.vue'
 import TicketForm from './components/TicketForm.vue'
 import TicketList from './components/TicketList.vue'
 import UserList from './components/UserList.vue'
+import Toast from './components/Toast.vue'
+import { useToast } from './composables/useToast'
+
+const toast = useToast()
 
 // Directive para cerrar el dropdown al hacer clic fuera
 const vClickOutside = {
@@ -67,6 +71,7 @@ function logout() {
 
 function onTicketCreated() {
   showCreateForm.value = false
+  toast.success('Ticket creado correctamente')
   ticketList.value?.loadTickets()
 }
 
@@ -158,6 +163,8 @@ function closeDropdown() {
       <UserList v-else-if="showUsers" />
       <TicketList v-else ref="ticketList" />
     </main>
+
+    <Toast />
   </template>
 </template>
 

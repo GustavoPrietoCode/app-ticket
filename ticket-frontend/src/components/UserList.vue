@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getUsers, updateUserRole } from '../api'
+import { useToast } from '../composables/useToast'
+
+const toast = useToast()
 
 interface UserRow {
   id: number
@@ -43,6 +46,9 @@ async function changeRole(user: UserRow, roleId: number) {
       user.role = newRole.name
       user.role_display = newRole.display
     }
+    toast.success(`Rol de ${user.name} actualizado a ${newRole?.display ?? ''}`)
+  } else {
+    toast.error('Error al cambiar el rol')
   }
 }
 

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { getTickets, updateTicketStatus, addComment, getComments, uploadFile, getUsers } from '../api'
+import { useToast } from '../composables/useToast'
+
+const toast = useToast()
 
 interface Ticket {
   id: number
@@ -136,6 +139,7 @@ async function changeStatus(ticket: Ticket, newStatus: string) {
   const res = await updateTicketStatus(ticket.id, newStatus)
   if (res.ok) {
     ticket.status = newStatus as Ticket['status']
+    toast.success(newStatus === 'closed' ? 'Ticket cerrado' : 'Ticket reabierto')
   }
 }
 
@@ -166,6 +170,7 @@ async function sendComment(ticket: Ticket) {
   const res = await addComment(ticket.id, text)
   if (res.ok) {
     commentText.value = ''
+    toast.success('Comentario enviado')
     // Recargar comentarios para mostrar el nuevo
     const refreshed = await getComments(ticket.id)
     if (refreshed.ok) {
