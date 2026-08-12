@@ -231,6 +231,10 @@ Flight::route('GET /api/tickets', function () {
     // Sincronizar estado desde Gitea para tickets con issue asociado
     /** @var GiteaService $gitea */
     $gitea = Flight::get('gitea');
+    /** @var AuthService $auth */
+    $auth   = Flight::get('auth');
+    /** @var EmailService $email */
+    $email  = Flight::get('email');
     foreach ($list as &$ticket) {
         if (!$ticket['gitea_issue_id']) {
             continue;
@@ -241,12 +245,27 @@ Flight::route('GET /api/tickets', function () {
         }
         // Mapear estado de Gitea → nuestro estado
         $giteaState = $issue['state']; // 'open' o 'closed'
+        $statusChanged = false;
         if ($giteaState === 'closed' && $ticket['status'] !== 'closed') {
             $tickets->updateStatus((int) $ticket['id'], 'closed');
             $ticket['status'] = 'closed';
+            $statusChanged = true;
         } elseif ($giteaState === 'open' && $ticket['status'] === 'closed') {
             $tickets->updateStatus((int) $ticket['id'], 'open');
             $ticket['status'] = 'open';
+            $statusChanged = true;
+        }
+
+        // Email si el estado cambió por sincronización desde Gitea
+        if ($statusChanged) {
+            try {
+                $owner = $auth->findById((int) $ticket['user_id']);
+                if ($owner && ($owner['email'] ?? null)) {
+                    $email->sendStatusChanged($owner['email'], $owner['name'] ?? 'Usuario', $ticket, $ticket['status']);
+                }
+            } catch (\Throwable $e) {
+                // ignorar
+            }
         }
     }
     unset($ticket);
