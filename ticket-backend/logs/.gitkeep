@@ -1,0 +1,2 @@
+# Los emails no enviados (sin SMTP configurado) se registran aquí.
+# En producción, configura el SMTP en config.php.

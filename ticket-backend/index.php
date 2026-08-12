@@ -4,6 +4,7 @@ require 'vendor/autoload.php';
 
 use Gus\MyFlightApp\AuthService;
 use Gus\MyFlightApp\Database;
+use Gus\MyFlightApp\EmailService;
 use Gus\MyFlightApp\GiteaService;
 use Gus\MyFlightApp\TicketService;
 
@@ -19,6 +20,7 @@ Flight::set('db', $pdo);
 Flight::set('tickets', new TicketService($pdo));
 Flight::set('auth', new AuthService($pdo));
 Flight::set('gitea', new GiteaService($config['gitea']));
+Flight::set('email', new EmailService($config['email'] ?? []));
 
 // ─── CORS ────────────────────────────────────────────────────────────
 
@@ -195,6 +197,15 @@ Flight::route('POST /api/tickets', function () {
     }
 
     Flight::json(['ticket' => $ticket], 201);
+
+    // Email de confirmación al creador
+    try {
+        /** @var EmailService $email */
+        $email = Flight::get('email');
+        $email->sendTicketCreated($user['email'], $user['name'], $ticket);
+    } catch (\Throwable $e) {
+        // ignorar — el ticket ya está creado
+    }
 });
 
 // Listar tickets del usuario autenticado (con sincronización desde Gitea)
@@ -319,6 +330,20 @@ Flight::route('PATCH /api/tickets/@id', function (string $id) {
     $tickets->updateStatus((int) $id, $status);
 
     Flight::json(['status' => $status]);
+
+    // Email de notificación al dueño del ticket
+    try {
+        /** @var AuthService $auth */
+        $auth   = Flight::get('auth');
+        $owner  = $auth->findById((int) $ticket['user_id']);
+        if ($owner && ($owner['email'] ?? null)) {
+            /** @var EmailService $email */
+            $email = Flight::get('email');
+            $email->sendStatusChanged($owner['email'], $owner['name'] ?? 'Usuario', $ticket, $status);
+        }
+    } catch (\Throwable $e) {
+        // ignorar
+    }
 });
 
 // Obtener comentarios de un ticket
@@ -450,6 +475,22 @@ Flight::route('POST /api/tickets/@id/comments', function (string $id) {
     }
 
     Flight::json(['comment' => $message], 201);
+
+    // Email al dueño si el comentario es de otro usuario
+    if (!$isOwner) {
+        try {
+            /** @var AuthService $auth */
+            $auth  = Flight::get('auth');
+            $owner = $auth->findById((int) $ticket['user_id']);
+            if ($owner && ($owner['email'] ?? null)) {
+                /** @var EmailService $email */
+                $email = Flight::get('email');
+                $email->sendNewComment($owner['email'], $owner['name'] ?? 'Usuario', $ticket, $user['name']);
+            }
+        } catch (\Throwable $e) {
+            // ignorar
+        }
+    }
 });
 
 Flight::start();

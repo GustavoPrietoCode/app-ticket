@@ -13,6 +13,7 @@
         }
     ],
     "require": {
-        "flightphp/core": "^3.18"
+        "flightphp/core": "^3.18",
+        "phpmailer/phpmailer": "^7.1"
     }
 }
