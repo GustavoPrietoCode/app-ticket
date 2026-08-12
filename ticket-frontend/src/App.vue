@@ -42,7 +42,7 @@ const showDropdown = ref(false)
 const showCreateForm = ref(false)
 const showUsers = ref(false)
 
-const isAdmin = (user.value?.role ?? '') === 'admin'
+const isAdmin = (user.value?.role ?? '') === 'admin';
 
 function onLoggedIn(loggedUser: User) {
   user.value = loggedUser
@@ -110,6 +110,7 @@ function closeDropdown() {
 
   <!-- App principal (autenticado) -->
   <template v-else>
+    <p v-if="isAdmin" class="bar-admin">admin</p>
     <header class="app-header">
       <h1>App Tickets</h1>
 
@@ -169,6 +170,14 @@ function closeDropdown() {
 </template>
 
 <style scoped>
+.bar-admin {
+  width: auto;
+  display: flex;
+  justify-content: center;
+  background-color: darkorange;
+  color: #fff;
+  font-weight: bolder;
+}
 /* ─── Header (público) ─── */
 header {
   text-align: center;
