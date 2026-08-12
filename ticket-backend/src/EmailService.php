@@ -148,7 +148,7 @@ class EmailService
     {
         $userName    = $vars['userName'] ?? '';
         $ticket      = $vars['ticket'] ?? [];
-        $ticketId    = $ticket['id'] ?? '?';
+        $ticketId    = $ticket['gitea_issue_id'] ?? $ticket['id'] ?? '?';
         $subject     = $ticket['subject'] ?? '';
         $description = $ticket['description'] ?? '';
 
