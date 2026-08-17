@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'AppToast' })
 import { useToast } from '../composables/useToast'
 
 const { toasts, remove } = useToast()
