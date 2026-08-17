@@ -19,15 +19,22 @@ class GiteaService
 
     /**
      * Crea un issue en Gitea y devuelve número + url, o null si falla.
+     * $labelIds opcional: IDs de etiquetas del repo a aplicar al issue.
      */
-    public function createIssue(string $title, string $description, string $reporterName, string $reporterEmail): ?array
+    public function createIssue(string $title, string $description, string $reporterName, string $reporterEmail, array $labelIds = []): ?array
     {
         $body = "**Reportado por:** {$reporterName} <{$reporterEmail}>\n\n{$description}";
 
-        $result = $this->request('POST', '/issues', [
+        $payload = [
             'title' => $title,
             'body'  => $body,
-        ]);
+        ];
+
+        if (!empty($labelIds)) {
+            $payload['labels'] = array_values($labelIds);
+        }
+
+        $result = $this->request('POST', '/issues', $payload);
 
         if (!$result || $result['http'] !== 201) {
             return null;
@@ -93,6 +100,28 @@ class GiteaService
                 'created_at' => $c['created_at'] ?? '',
             ];
         }, $comments);
+    }
+
+    /**
+     * Obtiene las etiquetas del repositorio desde Gitea.
+     */
+    public function listLabels(): array
+    {
+        $result = $this->request('GET', '/labels');
+
+        if (!$result || $result['http'] !== 200) {
+            return [];
+        }
+
+        $labels = $result['data'] ?? [];
+
+        return array_map(function (array $l) {
+            return [
+                'id'    => $l['id'] ?? null,
+                'name'  => $l['name'] ?? '',
+                'color' => $l['color'] ?? '',
+            ];
+        }, $labels);
     }
 
     /**

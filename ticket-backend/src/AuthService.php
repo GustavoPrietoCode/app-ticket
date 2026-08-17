@@ -124,7 +124,7 @@ class AuthService
         }
 
         $stmt = $this->pdo->prepare(
-            'SELECT u.id, u.name, u.email, u.role_id, r.name AS role, u.created_at
+            'SELECT u.id, u.name, u.email, u.role_id, u.organization_id, r.name AS role, u.created_at
              FROM users u
              LEFT JOIN roles r ON r.id = u.role_id
              WHERE u.token = :token'
@@ -141,7 +141,7 @@ class AuthService
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT u.id, u.name, u.email, u.role_id, r.name AS role, u.created_at
+            'SELECT u.id, u.name, u.email, u.role_id, u.organization_id, r.name AS role, u.created_at
              FROM users u
              LEFT JOIN roles r ON r.id = u.role_id
              WHERE u.id = :id'
@@ -167,14 +167,123 @@ class AuthService
     public function getAllUsers(): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT u.id, u.name, u.email, r.name AS role, r.display_name AS role_display, u.created_at
+            'SELECT u.id, u.name, u.email, u.organization_id, o.name AS organization_name,
+                    r.name AS role, r.display_name AS role_display, u.created_at
              FROM users u
              LEFT JOIN roles r ON r.id = u.role_id
+             LEFT JOIN organizations o ON o.id = u.organization_id
              ORDER BY u.id ASC'
         );
         $stmt->execute();
 
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Admin: crea un usuario con rol y organización opcionales.
+     * Devuelve el usuario creado o null si hay errores.
+     */
+    public function createUser(array $data): ?array
+    {
+        $this->errors = [];
+
+        $name     = trim(strip_tags($data['name'] ?? ''));
+        $email    = trim(strip_tags($data['email'] ?? ''));
+        $password = $data['password'] ?? '';
+        $roleId   = isset($data['role_id']) && $data['role_id'] !== null ? (int) $data['role_id'] : null;
+        $organizationId = isset($data['organization_id']) && $data['organization_id'] !== null ? (int) $data['organization_id'] : null;
+
+        $this->required('name', $name);
+        $this->required('email', $email);
+        $this->required('password', $password);
+
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->errors[] = 'El email no es válido.';
+        }
+
+        if (strlen($password) < 6) {
+            $this->errors[] = 'La contraseña debe tener al menos 6 caracteres.';
+        }
+
+        // Verificar email único
+        if (empty($this->errors)) {
+            $stmt = $this->pdo->prepare('SELECT id FROM users WHERE email = :email');
+            $stmt->execute([':email' => $email]);
+            if ($stmt->fetch()) {
+                $this->errors[] = 'Ya existe un usuario con ese email.';
+            }
+        }
+
+        // Rol por defecto 'user' si no se indica; validar que exista
+        if (empty($this->errors)) {
+            $roleStmt = $this->pdo->prepare($roleId !== null ? 'SELECT id FROM roles WHERE id = :id' : "SELECT id FROM roles WHERE name = 'user'");
+            $roleStmt->execute($roleId !== null ? [':id' => $roleId] : []);
+            $roleId = $roleStmt->fetchColumn() ?: null;
+
+            if ($roleId === null) {
+                $this->errors[] = 'Rol no válido.';
+            }
+        }
+
+        // Validar organización si se indica
+        if (empty($this->errors) && $organizationId !== null) {
+            $stmt = $this->pdo->prepare('SELECT id FROM organizations WHERE id = :id');
+            $stmt->execute([':id' => $organizationId]);
+            if (!$stmt->fetch()) {
+                $this->errors[] = 'Organización no válida.';
+            }
+        }
+
+        if (!empty($this->errors)) {
+            return null;
+        }
+
+        $hash = password_hash($password, PASSWORD_BCRYPT);
+
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO users (role_id, organization_id, name, email, password, created_at, updated_at)
+             VALUES (:role_id, :organization_id, :name, :email, :password, NOW(), NOW())'
+        );
+        $stmt->execute([
+            ':role_id'         => $roleId,
+            ':organization_id' => $organizationId,
+            ':name'            => $name,
+            ':email'           => $email,
+            ':password'        => $hash,
+        ]);
+
+        $id = (int) $this->pdo->lastInsertId();
+
+        return $this->findById($id);
+    }
+
+    /**
+     * Admin: actualiza role_id y/o organization_id de un usuario.
+     * organization_id null = quitar organización. Devuelve el usuario actualizado.
+     */
+    public function updateUser(int $userId, array $fields): ?array
+    {
+        $allowed = ['role_id', 'organization_id'];
+        $sets    = [];
+        $params  = [':id' => $userId];
+
+        foreach ($allowed as $field) {
+            if (array_key_exists($field, $fields)) {
+                $sets[]            = "{$field} = :{$field}";
+                $params[":{$field}"] = $fields[$field];
+            }
+        }
+
+        if (empty($sets)) {
+            return $this->findById($userId);
+        }
+
+        $stmt = $this->pdo->prepare(
+            'UPDATE users SET ' . implode(', ', $sets) . ', updated_at = NOW() WHERE id = :id'
+        );
+        $stmt->execute($params);
+
+        return $this->findById($userId);
     }
 
     public function getErrors(): array

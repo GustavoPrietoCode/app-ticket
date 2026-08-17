@@ -6,6 +6,7 @@ use Gus\MyFlightApp\AuthService;
 use Gus\MyFlightApp\Database;
 use Gus\MyFlightApp\EmailService;
 use Gus\MyFlightApp\GiteaService;
+use Gus\MyFlightApp\OrganizationService;
 use Gus\MyFlightApp\TicketService;
 
 // Cargar configuración
@@ -21,12 +22,13 @@ Flight::set('tickets', new TicketService($pdo));
 Flight::set('auth', new AuthService($pdo));
 Flight::set('gitea', new GiteaService($config['gitea']));
 Flight::set('email', new EmailService($config['email'] ?? []));
+Flight::set('organizations', new OrganizationService($pdo));
 
 // ─── CORS ────────────────────────────────────────────────────────────
 
 Flight::before('start', function () {
     header('Access-Control-Allow-Origin: http://localhost:5173');
-    header('Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS');
+    header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, Accept, X-Requested-With, Authorization');
     header('Access-Control-Max-Age: 86400');
 
@@ -51,6 +53,24 @@ function getAuthUser(): ?array
     $auth = Flight::get('auth');
 
     return $auth->findByToken($token);
+}
+
+/**
+ * Busca una etiqueta del repo de Gitea por su id.
+ * Devuelve ['id', 'name', 'color'] o null si no existe o Gitea no responde.
+ */
+function findGiteaLabel(int $labelId): ?array
+{
+    /** @var GiteaService $gitea */
+    $gitea = Flight::get('gitea');
+
+    foreach ($gitea->listLabels() as $label) {
+        if ((int) $label['id'] === $labelId) {
+            return $label;
+        }
+    }
+
+    return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -152,6 +172,18 @@ Flight::route('POST /api/tickets', function () {
         return;
     }
 
+    // Etiqueta de Gitea según la organización del usuario
+    /** @var OrganizationService $organizations */
+    $organizations = Flight::get('organizations');
+    $labelIds      = [];
+
+    if (!empty($user['organization_id'])) {
+        $organization = $organizations->findById((int) $user['organization_id']);
+        if ($organization && $organization['gitea_label_id']) {
+            $labelIds[] = (int) $organization['gitea_label_id'];
+        }
+    }
+
     // Crear issue en Gitea
     /** @var GiteaService $gitea */
     $gitea  = Flight::get('gitea');
@@ -159,7 +191,8 @@ Flight::route('POST /api/tickets', function () {
         $ticket['subject'],
         $ticket['description'],
         $user['name'],
-        $user['email']
+        $user['email'],
+        $labelIds
     );
 
     if ($issue && $issue['number']) {
@@ -288,7 +321,7 @@ Flight::route('GET /api/admin/users', function () {
     Flight::json(['users' => $users]);
 });
 
-// Admin: cambiar rol de un usuario
+// Admin: cambiar rol y/o organización de un usuario
 Flight::route('PATCH /api/admin/users/@id', function (string $id) {
     $user = getAuthUser();
     if (!$user || ($user['role'] ?? '') !== 'admin') {
@@ -296,17 +329,200 @@ Flight::route('PATCH /api/admin/users/@id', function (string $id) {
         return;
     }
 
-    $body   = json_decode(file_get_contents('php://input'), true);
-    $roleId = isset($body['role_id']) ? (int) $body['role_id'] : 0;
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
-    if ($roleId <= 0) {
-        Flight::json(['error' => 'role_id inválido.'], 422);
+    /** @var AuthService $auth */
+    $auth = Flight::get('auth');
+
+    if (isset($body['role_id'])) {
+        $roleId = (int) $body['role_id'];
+
+        if ($roleId <= 0) {
+            Flight::json(['error' => 'role_id inválido.'], 422);
+            return;
+        }
+
+        $auth->updateRole((int) $id, $roleId);
+    }
+
+    if (array_key_exists('organization_id', $body)) {
+        $organizationId = $body['organization_id'] !== null ? (int) $body['organization_id'] : null;
+
+        if ($organizationId !== null) {
+            /** @var OrganizationService $organizations */
+            $organizations = Flight::get('organizations');
+            if (!$organizations->findById($organizationId)) {
+                Flight::json(['error' => 'Organización no encontrada.'], 422);
+                return;
+            }
+        }
+
+        $auth->updateUser((int) $id, ['organization_id' => $organizationId]);
+    }
+
+    Flight::json(['ok' => true]);
+});
+
+// Admin: crear un usuario (con rol y organización opcionales)
+Flight::route('POST /api/admin/users', function () {
+    $user = getAuthUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+
+    if (!$body) {
+        Flight::json(['error' => 'Cuerpo JSON no válido.'], 400);
         return;
     }
 
     /** @var AuthService $auth */
     $auth = Flight::get('auth');
-    $auth->updateRole((int) $id, $roleId);
+    $newUser = $auth->createUser([
+        'name'            => $body['name'] ?? '',
+        'email'           => $body['email'] ?? '',
+        'password'        => $body['password'] ?? '',
+        'role_id'         => isset($body['role_id']) && $body['role_id'] !== null ? (int) $body['role_id'] : null,
+        'organization_id' => isset($body['organization_id']) && $body['organization_id'] !== null ? (int) $body['organization_id'] : null,
+    ]);
+
+    if ($newUser === null) {
+        Flight::json(['error' => 'Error al crear el usuario', 'messages' => $auth->getErrors()], 422);
+        return;
+    }
+
+    Flight::json(['user' => $newUser], 201);
+});
+
+// Admin: etiquetas del repo de Gitea (para el alta/edición de organizaciones)
+Flight::route('GET /api/admin/gitea-labels', function () {
+    $user = getAuthUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var GiteaService $gitea */
+    $gitea = Flight::get('gitea');
+
+    Flight::json(['labels' => $gitea->listLabels()]);
+});
+
+// Admin: listar organizaciones
+Flight::route('GET /api/admin/organizations', function () {
+    $user = getAuthUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var OrganizationService $organizations */
+    $organizations = Flight::get('organizations');
+
+    Flight::json(['organizations' => $organizations->findAll()]);
+});
+
+// Admin: crear organización (con etiqueta de Gitea opcional)
+Flight::route('POST /api/admin/organizations', function () {
+    $user = getAuthUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+
+    if (!$body) {
+        Flight::json(['error' => 'Cuerpo JSON no válido.'], 400);
+        return;
+    }
+
+    $data = [
+        'name'           => $body['name'] ?? '',
+        'gitea_label_id' => isset($body['gitea_label_id']) && $body['gitea_label_id'] !== null ? (int) $body['gitea_label_id'] : null,
+    ];
+
+    // Resolver la etiqueta elegida contra Gitea para guardar su nombre y color
+    if ($data['gitea_label_id'] !== null) {
+        $label = findGiteaLabel($data['gitea_label_id']);
+        if ($label === null) {
+            Flight::json(['error' => 'Etiqueta no válida. Actualiza las etiquetas de Gitea e inténtalo de nuevo.'], 422);
+            return;
+        }
+        $data['gitea_label_name']  = $label['name'];
+        $data['gitea_label_color'] = $label['color'];
+    }
+
+    /** @var OrganizationService $organizations */
+    $organizations = Flight::get('organizations');
+    $organization  = $organizations->create($data);
+
+    if ($organization === null) {
+        Flight::json(['error' => 'Validación fallida', 'messages' => $organizations->getErrors()], 422);
+        return;
+    }
+
+    Flight::json(['organization' => $organization], 201);
+});
+
+// Admin: editar organización (nombre y/o etiqueta de Gitea)
+Flight::route('PATCH /api/admin/organizations/@id', function (string $id) {
+    $user = getAuthUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $data = [];
+
+    if (isset($body['name'])) {
+        $data['name'] = $body['name'];
+    }
+
+    if (array_key_exists('gitea_label_id', $body)) {
+        $data['gitea_label_id'] = $body['gitea_label_id'] !== null ? (int) $body['gitea_label_id'] : null;
+
+        if ($data['gitea_label_id'] !== null) {
+            $label = findGiteaLabel($data['gitea_label_id']);
+            if ($label === null) {
+                Flight::json(['error' => 'Etiqueta no válida. Actualiza las etiquetas de Gitea e inténtalo de nuevo.'], 422);
+                return;
+            }
+            $data['gitea_label_name']  = $label['name'];
+            $data['gitea_label_color'] = $label['color'];
+        } else {
+            $data['gitea_label_name']  = null;
+            $data['gitea_label_color'] = null;
+        }
+    }
+
+    /** @var OrganizationService $organizations */
+    $organizations = Flight::get('organizations');
+    $organization  = $organizations->update((int) $id, $data);
+
+    if ($organization === null) {
+        Flight::json(['error' => 'Validación fallida', 'messages' => $organizations->getErrors()], 422);
+        return;
+    }
+
+    Flight::json(['organization' => $organization]);
+});
+
+// Admin: borrar organización
+Flight::route('DELETE /api/admin/organizations/@id', function (string $id) {
+    $user = getAuthUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        Flight::json(['error' => 'No autorizado.'], 401);
+        return;
+    }
+
+    /** @var OrganizationService $organizations */
+    $organizations = Flight::get('organizations');
+    $organizations->delete((int) $id);
 
     Flight::json(['ok' => true]);
 });

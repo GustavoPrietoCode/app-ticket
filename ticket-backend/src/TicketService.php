@@ -71,9 +71,10 @@ class TicketService
     public function findByUserId(int $userId): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT t.*, u.name AS user_name
+            'SELECT t.*, u.name AS user_name, o.name AS organization_name, o.gitea_label_color AS organization_color
              FROM tickets t
              JOIN users u ON u.id = t.user_id
+             LEFT JOIN organizations o ON o.id = u.organization_id
              WHERE t.user_id = :user_id
              ORDER BY t.created_at DESC'
         );
@@ -88,9 +89,10 @@ class TicketService
     public function findAll(): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT t.*, u.name AS user_name
+            'SELECT t.*, u.name AS user_name, o.name AS organization_name, o.gitea_label_color AS organization_color
              FROM tickets t
              JOIN users u ON u.id = t.user_id
+             LEFT JOIN organizations o ON o.id = u.organization_id
              ORDER BY t.created_at DESC'
         );
         $stmt->execute();
