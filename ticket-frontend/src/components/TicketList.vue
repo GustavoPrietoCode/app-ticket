@@ -12,6 +12,8 @@ interface Ticket {
   status: 'open' | 'closed'
   gitea_issue_id: number | null
   user_name?: string
+  organization_name?: string | null
+  organization_color?: string | null
   created_at: string
   updated_at: string
 }
@@ -20,7 +22,9 @@ const savedUser = JSON.parse(localStorage.getItem('user') ?? '{}')
 const isAdmin = (savedUser.role ?? '') === 'admin'
 
 // Admin: lista de usuarios y filtro
-const users = ref<{ id: number; name: string; email: string; role_display: string }[]>([])
+const users = ref<
+  { id: number; name: string; email: string; role_display: string; organization_name?: string | null }[]
+>([])
 const selectedUser = ref<number | null>(null)
 
 async function loadUsers() {
@@ -192,6 +196,11 @@ function statusClass(status: string): string {
   return `badge badge-${status}`
 }
 
+function chipColor(color: string | null | undefined): string {
+  if (!color) return '#3b82f6'
+  return color.startsWith('#') ? color : `#${color}`
+}
+
 function renderBody(body: string): string {
   // Convertir ![alt](url) en enlaces clickables
   let html = body.replace(
@@ -250,7 +259,7 @@ onMounted(() => {
       <select class="user-select" @change="onUserFilterChange">
         <option value="">Todos los usuarios</option>
         <option v-for="u in users" :key="u.id" :value="u.id">
-          {{ u.name }} — {{ u.role_display }}
+          {{ u.name }} — {{ u.role_display }}{{ u.organization_name ? ` · ${u.organization_name}` : '' }}
         </option>
       </select>
     </div>
@@ -290,6 +299,13 @@ onMounted(() => {
             </span>
           </div>
           <span :class="statusClass(ticket.status)">{{ statusLabel(ticket.status) }}</span>
+          <span
+            v-if="ticket.organization_name"
+            class="org-chip"
+            :style="{ backgroundColor: chipColor(ticket.organization_color) }"
+          >
+            {{ ticket.organization_name }}
+          </span>
         </div>
 
         <p class="card-desc">{{ ticket.description }}</p>
@@ -591,6 +607,16 @@ onMounted(() => {
 }
 .badge-open { background: #dcfce7; color: #15803d; }
 .badge-closed { background: #fee2e2; color: #b91c1c; }
+
+.org-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+}
 
 /* ─── Acciones ─── */
 .card-actions {

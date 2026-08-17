@@ -4,7 +4,7 @@ function getToken(): string | null {
   return localStorage.getItem('token')
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function request(
   path: string,
   options: RequestInit = {},
@@ -85,11 +85,58 @@ export function getUsers() {
   return request('/admin/users')
 }
 
-export function updateUserRole(userId: number, roleId: number) {
+export function updateUser(
+  userId: number,
+  patch: { role_id?: number; organization_id?: number | null },
+) {
   return request(`/admin/users/${userId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ role_id: roleId }),
+    body: JSON.stringify(patch),
   })
+}
+
+export function createUser(data: {
+  name: string
+  email: string
+  password: string
+  role_id?: number
+  organization_id?: number | null
+}) {
+  return request('/admin/users', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+// ─── Organizaciones (admin) ─────────────────────────────────────────
+
+export function getOrganizations() {
+  return request('/admin/organizations')
+}
+
+export function createOrganization(name: string, gitea_label_id?: number | null) {
+  return request('/admin/organizations', {
+    method: 'POST',
+    body: JSON.stringify({ name, gitea_label_id: gitea_label_id ?? null }),
+  })
+}
+
+export function updateOrganization(
+  id: number,
+  patch: { name?: string; gitea_label_id?: number | null },
+) {
+  return request(`/admin/organizations/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteOrganization(id: number) {
+  return request(`/admin/organizations/${id}`, { method: 'DELETE' })
+}
+
+export function getGiteaLabels() {
+  return request('/admin/gitea-labels')
 }
 
 export function updateTicketStatus(id: number, status: string) {

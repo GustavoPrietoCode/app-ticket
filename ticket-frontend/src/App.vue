@@ -5,21 +5,28 @@ import RegisterForm from './components/RegisterForm.vue'
 import TicketForm from './components/TicketForm.vue'
 import TicketList from './components/TicketList.vue'
 import UserList from './components/UserList.vue'
+import OrganizationList from './components/OrganizationList.vue'
 import Toast from './components/Toast.vue'
 import { useToast } from './composables/useToast'
 
 const toast = useToast()
 
 // Directive para cerrar el dropdown al hacer clic fuera
+type ClickOutsideElement = HTMLElement & { _clickOutside?: (e: MouseEvent) => void }
+
 const vClickOutside = {
   mounted(el: HTMLElement, binding: { value: () => void }) {
-    (el as any)._clickOutside = (e: MouseEvent) => {
+    const target = el as ClickOutsideElement
+    target._clickOutside = (e: MouseEvent) => {
       if (!el.contains(e.target as Node)) binding.value()
     }
-    document.addEventListener('click', (el as any)._clickOutside)
+    document.addEventListener('click', target._clickOutside)
   },
   unmounted(el: HTMLElement) {
-    document.removeEventListener('click', (el as any)._clickOutside)
+    const target = el as ClickOutsideElement
+    if (target._clickOutside) {
+      document.removeEventListener('click', target._clickOutside)
+    }
   },
 }
 
@@ -41,6 +48,7 @@ const ticketList = ref<InstanceType<typeof TicketList> | null>(null)
 const showDropdown = ref(false)
 const showCreateForm = ref(false)
 const showUsers = ref(false)
+const showOrganizations = ref(false)
 
 const isAdmin = (user.value?.role ?? '') === 'admin';
 
@@ -119,12 +127,20 @@ function closeDropdown() {
           v-if="isAdmin && !showCreateForm"
           class="btn-create btn-users"
           :class="{ active: showUsers }"
-          @click="showUsers = !showUsers; showCreateForm = false"
+          @click="showUsers = !showUsers; showOrganizations = false; showCreateForm = false"
         >
           {{ showUsers ? 'Ver tickets' : 'Usuarios' }}
         </button>
         <button
-          v-if="!showCreateForm && !showUsers"
+          v-if="isAdmin && !showCreateForm"
+          class="btn-create btn-users"
+          :class="{ active: showOrganizations }"
+          @click="showOrganizations = !showOrganizations; showUsers = false; showCreateForm = false"
+        >
+          {{ showOrganizations ? 'Ver tickets' : 'Organizaciones' }}
+        </button>
+        <button
+          v-if="!showCreateForm && !showUsers && !showOrganizations"
           class="btn-create"
           @click="showCreateForm = true"
         >
@@ -161,6 +177,7 @@ function closeDropdown() {
         @ticket-created="onTicketCreated"
         @cancel="onCancelCreate"
       />
+      <OrganizationList v-else-if="showOrganizations" />
       <UserList v-else-if="showUsers" />
       <TicketList v-else ref="ticketList" />
     </main>
